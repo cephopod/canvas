@@ -7,8 +7,8 @@ import {
     ContainerRuntimeFactoryWithDefaultDataStore,
     DataObjectFactory,
 } from "@fluidframework/aqueduct";
-import { Ink } from "@fluidframework/ink";
 import { Canvas } from "./canvas";
+import { Ink } from "./ink";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const pkg = require("../package.json");
