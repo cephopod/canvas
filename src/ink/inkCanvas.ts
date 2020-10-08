@@ -121,6 +121,10 @@ export class InkCanvas {
         this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
         this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
 
+        this.canvas.addEventListener("touchstart", this.handlePointerDown.bind(this));
+        this.canvas.addEventListener("touchmove", this.handlePointerMove.bind(this));
+        this.canvas.addEventListener("touchend", this.handlePointerUp.bind(this));
+
         const context = this.canvas.getContext("2d");
         // eslint-disable-next-line no-null/no-null
         if (context === null) {
@@ -172,7 +176,8 @@ export class InkCanvas {
 
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
-        if ((evt.pointerType === "pen") || ((evt.pointerType === "mouse") && (evt.button === 0))) {
+        if ((evt.pointerType === "pen") || (evt.pointerType === "touch") ||
+            ((evt.pointerType === "mouse") && (evt.button === 0))) {
             const strokeId = this.model.createStroke(this.currentPen).id;
             this.localActiveStrokeMap.set(evt.pointerId, strokeId);
 
@@ -184,7 +189,14 @@ export class InkCanvas {
 
     private handlePointerMove(evt: PointerEvent) {
         if (this.localActiveStrokeMap.has(evt.pointerId)) {
-            const evts = (evt as any)?.getCoalescedEvents() ?? [evt] as PointerEvent[];
+            const evobj = (evt as any);
+            let evts: PointerEvent[];
+            if (evobj.getCoalescedEvents !== undefined) {
+                evts = evobj.getCoalescedEvents();
+            }
+            if (evts === undefined) {
+                evts = [evt];
+            }
             for (const e of evts) {
                 this.appendPointerEventToStroke(e);
             }
@@ -207,7 +219,7 @@ export class InkCanvas {
             x: evt.offsetX,
             y: evt.offsetY,
             time: Date.now(),
-            pressure: evt.pressure,
+            pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
         this.model.appendPointToStroke(inkPt, strokeId);
     }
