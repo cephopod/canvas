@@ -1,8 +1,8 @@
 {
-  "name": "@kurtb/canvas",
+  "name": "@cephopod/canvas",
   "version": "0.1.0",
   "description": "Fluid ink canvas",
-  "homepage": "https://github.com/kurtb/canvas",
+  "homepage": "https://github.com/cephopod/canvas",
   "repository": "kurtb/canvas",
   "license": "MIT",
   "author": "Microsoft",
