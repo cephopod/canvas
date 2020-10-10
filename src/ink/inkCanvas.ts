@@ -121,9 +121,9 @@ export class InkCanvas {
         this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
         this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
 
-        this.canvas.addEventListener("touchstart", this.handlePointerDown.bind(this));
-        this.canvas.addEventListener("touchmove", this.handlePointerMove.bind(this));
-        this.canvas.addEventListener("touchend", this.handlePointerUp.bind(this));
+        // this.canvas.addEventListener("touchstart", this.handlePointerDown.bind(this));
+        // this.canvas.addEventListener("touchmove", this.handlePointerMove.bind(this));
+        // this.canvas.addEventListener("touchend", this.handlePointerUp.bind(this));
 
         const context = this.canvas.getContext("2d");
         // eslint-disable-next-line no-null/no-null
@@ -185,6 +185,7 @@ export class InkCanvas {
 
             evt.preventDefault();
         }
+        console.log(`ptr down ${evt.pointerId}`);
     }
 
     private handlePointerMove(evt: PointerEvent) {
@@ -201,6 +202,7 @@ export class InkCanvas {
                 this.appendPointerEventToStroke(e);
             }
         }
+        console.log(`ptr move ${evt.pointerId}`);
     }
 
     private handlePointerUp(evt: PointerEvent) {
@@ -208,6 +210,7 @@ export class InkCanvas {
             this.appendPointerEventToStroke(evt);
             this.localActiveStrokeMap.delete(evt.pointerId);
         }
+        console.log(`ptr up ${evt.pointerId}`);
     }
 
     private appendPointerEventToStroke(evt: PointerEvent) {
