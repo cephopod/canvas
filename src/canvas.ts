@@ -7,7 +7,7 @@ import { DataObject } from "@fluidframework/aqueduct";
 import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import { IColor, IInk, Ink, InkCanvas } from "./ink";
-
+import { svgLibrary } from "./svgUtil";
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
 
@@ -78,29 +78,24 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkToolbar.classList.add("ink-toolbar");
 
         const colorButton = document.createElement("button");
-        colorButton.classList.add("ink-toolbar-button", "fluid-icon-pencil");
+        colorButton.classList.add("ink-toolbar-button");
         colorButton.addEventListener("click", this.toggleColorPicker.bind(this));
+        colorButton.appendChild(svgLibrary.iconPen());
 
         const replayButton = document.createElement("button");
-        replayButton.classList.add("ink-toolbar-button", "fluid-icon-replay");
+        replayButton.classList.add("ink-toolbar-button");
         replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
+        replayButton.appendChild(svgLibrary.iconPlayCircle());
 
         const clearButton = document.createElement("button");
-        clearButton.classList.add("ink-toolbar-button", "fluid-icon-cross");
+        clearButton.classList.add("ink-toolbar-button");
         clearButton.addEventListener("click", this.inkCanvas.clear.bind(this.inkCanvas));
+        clearButton.appendChild(svgLibrary.iconX());
 
         const toggleTouchButton = document.createElement("button");
-        toggleTouchButton.classList.add("ink-toolbar-button", "fluid-icon-touch");
+        toggleTouchButton.classList.add("ink-toolbar-button");
         toggleTouchButton.addEventListener("click", () => {alert("touch toggle will go here");});
-
-        const rawSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none"\
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"\
-            class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18">\
-            </line></svg>`;
-
-        const testSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        inkToolbar.appendChild(testSVG);
-        testSVG.outerHTML = rawSVG;
+        toggleTouchButton.appendChild(svgLibrary.iconMove());
 
         inkToolbar.appendChild(colorButton);
         inkToolbar.appendChild(replayButton);
