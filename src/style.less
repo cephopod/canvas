@@ -15,27 +15,30 @@
 }
 
 .ink-canvas {
+    height: 100%;
     flex-grow: 1;
-    /* Save 50 px for the toolbar */
-    max-height: 90%;
-    background-color: #000;
-    touch-action: none;
+    background-color: #ffffff;
 }
 
 .ink-toolbar {
-    width: 100%;
+    position: absolute;
+    left: 40%;
+    top: 10px;
     height: 50px;
-    background-color: #222;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+    background-color: bisque;
 }
 
 .ink-toolbar-button {
     width: 50px;
     height: 50px;
-    background-color: #333;
+    background-color: bisque;
     background-size: 50%;
     background-repeat: no-repeat;
     background-position: center;
     border: none;
+    border-radius: 5px;
 }
 
 .ink-toolbar-button:hover {
@@ -57,7 +60,8 @@
 .ink-color-picker {
     width: 100px;
     position: absolute;
-    bottom: 50px;
+    top: 60px;
+    left:40%;
     display: none;
     flex-direction: column;
 }
