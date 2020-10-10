@@ -91,9 +91,13 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         const toggleTouchButton = document.createElement("button");
         toggleTouchButton.classList.add("ink-toolbar-button", "fluid-icon-touch");
-        toggleTouchButton.addEventListener("click", () => {alert("touch toggle will go here")});
+        toggleTouchButton.addEventListener("click", () => {alert("touch toggle will go here");});
 
-        const rawSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+        const rawSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none"\
+            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"\
+            class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18">\
+            </line></svg>`;
+
         const testSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         inkToolbar.appendChild(testSVG);
         testSVG.outerHTML = rawSVG;
