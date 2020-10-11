@@ -6,23 +6,12 @@
 import { DataObject } from "@fluidframework/aqueduct";
 import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
+import * as AColorPicker from "a-color-picker";
 import { IColor, IInk, Ink, InkCanvas } from "./ink";
+import { svgLibrary } from "./svgUtil";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
-
-const colorPickerColors: IColor[] = [
-    { r: 253, g: 0, b: 12, a: 1 },
-    { r: 134, g: 0, b: 56, a: 1 },
-    { r: 253, g: 187, b: 48, a: 1 },
-    { r: 255, g: 255, b: 81, a: 1 },
-    { r: 0, g: 45, b: 98, a: 1 },
-    { r: 246, g: 83, b: 20, a: 1 },
-    { r: 0, g: 161, b: 241, a: 1 },
-    { r: 124, g: 187, b: 0, a: 1 },
-    { r: 8, g: 170, b: 51, a: 1 },
-    { r: 0, g: 0, b: 0, a: 1 },
-];
 
 export class Canvas extends DataObject implements IFluidHTMLView {
     public get IFluidHTMLView() { return this; }
@@ -30,6 +19,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private ink: IInk;
     private inkCanvas: InkCanvas;
     private inkColorPicker: HTMLDivElement;
+    private showingColorPicker: boolean = false;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -58,6 +48,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const canvasElement = document.createElement("canvas");
         canvasElement.classList.add("ink-canvas");
 
+        this.inkColorPicker = this.createColorPicker();
+
         this.inkCanvas = new InkCanvas(canvasElement, this.ink);
 
         const inkToolbar = this.createToolbar();
@@ -66,9 +58,15 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkSurface.appendChild(canvasElement);
         inkSurface.appendChild(inkToolbar);
 
-        this.inkColorPicker = this.createColorPicker();
+        inkComponentRoot.addEventListener("click", () =>
+            this.showingColorPicker ? this.toggleColorPicker() : undefined);
 
-        inkComponentRoot.appendChild(this.inkColorPicker);
+        this.inkCanvas.setPenColor({ r: 0, g: 0, b: 0, a: 1 });
+        const penSVG = document.getElementById("pen-svg");
+        // eslint-disable-next-line no-null/no-null
+        if (penSVG !== null) {
+            penSVG.setAttribute("fill", "#000");
+        }
 
         return inkComponentRoot;
     }
@@ -77,32 +75,34 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const inkToolbar = document.createElement("div");
         inkToolbar.classList.add("ink-toolbar");
 
+        const colorButtonContainer = document.createElement("div");
         const colorButton = document.createElement("button");
-        colorButton.classList.add("ink-toolbar-button", "fluid-icon-pencil");
-        colorButton.addEventListener("click", this.toggleColorPicker.bind(this));
+        colorButton.classList.add("ink-toolbar-button");
+        colorButton.setAttribute("id", "ink-toolbar-button-color");
+        colorButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            this.toggleColorPicker();
+        });
+        colorButton.appendChild(svgLibrary.iconPen("pen-svg"));
+        colorButtonContainer.appendChild(colorButton);
+        colorButtonContainer.appendChild(this.inkColorPicker);
 
         const replayButton = document.createElement("button");
-        replayButton.classList.add("ink-toolbar-button", "fluid-icon-replay");
+        replayButton.classList.add("ink-toolbar-button");
         replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
+        replayButton.appendChild(svgLibrary.iconPlayCircle());
 
         const clearButton = document.createElement("button");
-        clearButton.classList.add("ink-toolbar-button", "fluid-icon-cross");
+        clearButton.classList.add("ink-toolbar-button");
         clearButton.addEventListener("click", this.inkCanvas.clear.bind(this.inkCanvas));
+        clearButton.appendChild(svgLibrary.iconX());
 
         const toggleTouchButton = document.createElement("button");
-        toggleTouchButton.classList.add("ink-toolbar-button", "fluid-icon-touch");
-        toggleTouchButton.addEventListener("click", () => {alert("touch toggle will go here");});
+        toggleTouchButton.classList.add("ink-toolbar-button");
+        toggleTouchButton.addEventListener("click", () => { alert("touch toggle will go here"); });
+        toggleTouchButton.appendChild(svgLibrary.iconMove());
 
-        const rawSVG = `<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none"\
-            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"\
-            class="feather feather-x"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18">\
-            </line></svg>`;
-
-        const testSVG = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-        inkToolbar.appendChild(testSVG);
-        testSVG.outerHTML = rawSVG;
-
-        inkToolbar.appendChild(colorButton);
+        inkToolbar.appendChild(colorButtonContainer);
         inkToolbar.appendChild(replayButton);
         inkToolbar.appendChild(toggleTouchButton);
         inkToolbar.appendChild(clearButton);
@@ -112,30 +112,33 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
     private createColorPicker() {
         const inkColorPicker = document.createElement("div");
+        inkColorPicker.setAttribute("acp-show-rgb", "no");
+        inkColorPicker.setAttribute("acp-show-hsl", "no");
+        inkColorPicker.setAttribute("acp-palette-editable", "");
         inkColorPicker.classList.add("ink-color-picker");
+        AColorPicker.createPicker(inkColorPicker, { color: "#000" }).on(
+            "change", (p, c) => {
+                const rgb = c.replace(/[^\d,]/g, "").split(",");
+                const parsedColor: IColor = {
+                    r: Number(rgb[0]),
+                    g: Number(rgb[1]),
+                    b: Number(rgb[2]),
+                    a: 1,
+                };
+                this.inkCanvas.setPenColor(parsedColor);
+                document.getElementById("pen-svg").setAttribute("fill", c);
+            });
 
-        for (const color of colorPickerColors) {
-            inkColorPicker.appendChild(this.createColorOption(color));
-        }
+        inkColorPicker.addEventListener("click", (event) => {
+            event.stopPropagation();
+        });
 
         return inkColorPicker;
     }
 
-    private createColorOption(color: IColor) {
-        const inkColorOption = document.createElement("button");
-        inkColorOption.classList.add("ink-color-option");
-        inkColorOption.style.backgroundColor = `rgba(${color.r}, ${color.g}, ${color.b}, ${color.a})`;
-
-        inkColorOption.addEventListener("click", () => {
-            this.inkCanvas.setPenColor(color);
-            this.toggleColorPicker();
-        });
-
-        return inkColorOption;
-    }
-
     private toggleColorPicker() {
         this.inkColorPicker.classList.toggle("show");
+        this.showingColorPicker = !this.showingColorPicker;
     }
 
     private sizeCanvas() {

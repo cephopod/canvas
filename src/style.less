@@ -29,18 +29,16 @@ html {
 }
 
 .ink-toolbar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: .5rem;
+    background-color: #35343b;
     position: absolute;
     left: 40%;
     top: 10px;
     height: 50px;
-    border-radius: 5px;
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
-    background-color: #35343b;
-    color:#fff;
-
-    :hover {
-        color:red;
-    }
 }
 
 .ink-toolbar-button {
@@ -51,35 +49,24 @@ html {
     background-repeat: no-repeat;
     background-position: center;
     border: none;
-}
-
-.ink-toolbar-button:hover {
-    background-color: orangered;
-}
-
-.fluid-icon-pencil {
-    background-image: url("../images/icons/edit-2.svg");
-}
-
-.fluid-icon-replay {
-    background-image: url("../images/icons/play-circle.svg");
-}
-
-.fluid-icon-cross {
-    background-image: url("../images/icons/x.svg");
-}
-
-.fluid-icon-touch {
-    background-image: url("../images/icons/move.svg");
+    color: #fff;
+    :hover {
+        opacity: .75;
+    }
+    
 }
 
 .ink-color-picker {
     width: 100px;
     position: absolute;
-    top: 60px;
-    left:40%;
+    top:5rem;
+    left:0;
     display: none;
     flex-direction: column;
+
+    .a-color-picker {
+        background-color: #fff;
+    }
 }
 
 .ink-color-picker.show {
