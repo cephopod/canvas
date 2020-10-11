@@ -3,14 +3,13 @@
  * Licensed under the MIT License.
  */
 
- //testing for git
-
 import { DataObject } from "@fluidframework/aqueduct";
 import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
+import * as AColorPicker from "a-color-picker";
 import { IColor, IInk, Ink, InkCanvas } from "./ink";
 import { svgLibrary } from "./svgUtil";
-import AColorPicker = require("../node_modules/a-color-picker/dist/acolorpicker")
+// import AColorPicker = require("../node_modules/a-color-picker/dist/acolorpicker");
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
@@ -60,9 +59,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkSurface.appendChild(canvasElement);
         inkSurface.appendChild(inkToolbar);
 
-        inkComponentRoot.addEventListener("click", () => {
-            this.showingColorPicker ? this.toggleColorPicker() : undefined;
-        })
+        inkComponentRoot.addEventListener("click", () =>
+            this.showingColorPicker ? this.toggleColorPicker() : undefined);
 
         return inkComponentRoot;
     }
@@ -95,7 +93,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         const toggleTouchButton = document.createElement("button");
         toggleTouchButton.classList.add("ink-toolbar-button");
-        toggleTouchButton.addEventListener("click", () => {alert("touch toggle will go here");});
+        toggleTouchButton.addEventListener("click", () => { alert("touch toggle will go here"); });
         toggleTouchButton.appendChild(svgLibrary.iconMove());
 
         inkToolbar.appendChild(colorButtonContainer);
@@ -109,25 +107,25 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private createColorPicker() {
         const inkColorPicker = document.createElement("div");
         inkColorPicker.setAttribute("acp-show-rgb", "no");
-        inkColorPicker.setAttribute("acp-show-hsl", 'no');
+        inkColorPicker.setAttribute("acp-show-hsl", "no");
         inkColorPicker.classList.add("ink-color-picker");
         AColorPicker.createPicker(inkColorPicker).on(
-            'change', (p,c)=>{
-                let rgb = c.replace(/[^\d,]/g, '').split(',');
-                let parsedColor:IColor = {
+            "change", (p, c) => {
+                const rgb = c.replace(/[^\d,]/g, "").split(",");
+                const parsedColor: IColor = {
                     r: Number(rgb[0]),
                     g: Number(rgb[1]),
                     b: Number(rgb[2]),
-                    a: 1
-                }
+                    a: 1,
+                };
                 this.inkCanvas.setPenColor(parsedColor);
-                document.getElementById("ink-toolbar-button-color").style.color = c; 
+                document.getElementById("ink-toolbar-button-color").style.color = c;
             });
 
         inkColorPicker.addEventListener("click", (event) => {
             console.log("clicking on color picker");
             event.stopPropagation();
-        })
+        });
 
         return inkColorPicker;
     }
