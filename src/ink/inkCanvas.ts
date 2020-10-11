@@ -109,7 +109,9 @@ function drawShapes(
 function isiOS() {
     const userAgent = navigator.userAgent;
     if (userAgent !== undefined) {
-        return userAgent.match(/Mac/) && navigator.maxTouchPoints && (navigator.maxTouchPoints > 2);       
+        // eslint-disable-next-line @typescript-eslint/prefer-regexp-exec, no-null/no-null
+        return (userAgent.match(/Mac/) !== null) && (navigator.maxTouchPoints !== undefined)
+            && (navigator.maxTouchPoints > 2);
     }
 
     return false;
@@ -130,7 +132,6 @@ export class InkCanvas {
             this.canvas.addEventListener("pointerdown", this.handlePointerDown.bind(this));
             this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
             this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
-
         } else {
             this.canvas.addEventListener("touchstart", this.handleTouchStart.bind(this));
             this.canvas.addEventListener("touchmove", this.handleTouchMove.bind(this));
@@ -269,7 +270,7 @@ export class InkCanvas {
             throw new Error("Unexpected touch ID trying to append to stroke");
         }
         let pressure = 0.1;
-        if (t.force> 0) {
+        if (t.force > 0) {
             pressure = t.force;
         }
         const inkPt = {
