@@ -51,17 +51,22 @@ html {
     border: none;
     color: #fff;
     :hover {
-        opacity: .9;
+        opacity: .75;
     }
+    
 }
 
 .ink-color-picker {
     width: 100px;
     position: absolute;
-    top: 60px;
-    left:40%;
+    top:5rem;
+    left:0;
     display: none;
     flex-direction: column;
+
+    .a-color-picker {
+        background-color: #fff;
+    }
 }
 
 .ink-color-picker.show {
