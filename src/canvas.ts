@@ -114,6 +114,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const inkColorPicker = document.createElement("div");
         inkColorPicker.setAttribute("acp-show-rgb", "no");
         inkColorPicker.setAttribute("acp-show-hsl", "no");
+        inkColorPicker.setAttribute("acp-palette-editable", "");
         inkColorPicker.classList.add("ink-color-picker");
         AColorPicker.createPicker(inkColorPicker, { color: "#000" }).on(
             "change", (p, c) => {
