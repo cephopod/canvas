@@ -9,7 +9,6 @@ import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfac
 import * as AColorPicker from "a-color-picker";
 import { IColor, IInk, Ink, InkCanvas } from "./ink";
 import { svgLibrary } from "./svgUtil";
-// import AColorPicker = require("../node_modules/a-color-picker/dist/acolorpicker");
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
@@ -62,6 +61,13 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkComponentRoot.addEventListener("click", () =>
             this.showingColorPicker ? this.toggleColorPicker() : undefined);
 
+        this.inkCanvas.setPenColor({ r: 0, g: 0, b: 0, a: 1 });
+        const penSVG = document.getElementById("pen-svg");
+        // eslint-disable-next-line no-null/no-null
+        if (penSVG !== null) {
+            penSVG.setAttribute("fill", "#000");
+        }
+
         return inkComponentRoot;
     }
 
@@ -77,7 +83,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             event.stopPropagation();
             this.toggleColorPicker();
         });
-        colorButton.appendChild(svgLibrary.iconPen());
+        colorButton.appendChild(svgLibrary.iconPen("pen-svg"));
         colorButtonContainer.appendChild(colorButton);
         colorButtonContainer.appendChild(this.inkColorPicker);
 
@@ -109,7 +115,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkColorPicker.setAttribute("acp-show-rgb", "no");
         inkColorPicker.setAttribute("acp-show-hsl", "no");
         inkColorPicker.classList.add("ink-color-picker");
-        AColorPicker.createPicker(inkColorPicker).on(
+        AColorPicker.createPicker(inkColorPicker, { color: "#000" }).on(
             "change", (p, c) => {
                 const rgb = c.replace(/[^\d,]/g, "").split(",");
                 const parsedColor: IColor = {
@@ -119,11 +125,10 @@ export class Canvas extends DataObject implements IFluidHTMLView {
                     a: 1,
                 };
                 this.inkCanvas.setPenColor(parsedColor);
-                document.getElementById("ink-toolbar-button-color").style.color = c;
+                document.getElementById("pen-svg").setAttribute("fill", c);
             });
 
         inkColorPicker.addEventListener("click", (event) => {
-            console.log("clicking on color picker");
             event.stopPropagation();
         });
 
