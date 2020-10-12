@@ -2,7 +2,6 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-
 import { IColor, IInk, IInkPoint, IInkStroke, IPen, IStylusOperation } from "./interfaces";
 
 interface IPoint {
@@ -107,23 +106,40 @@ function drawShapes(
     drawCircle(context, { x: endPoint.x, y: endPoint.y }, widthAtEnd);
 }
 
+function isiOS() {
+    const userAgent = navigator.userAgent;
+    if (userAgent !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/prefer-regexp-exec, no-null/no-null
+        return (userAgent.match(/Mac/) !== null) && (navigator.maxTouchPoints !== undefined)
+            && (navigator.maxTouchPoints > 2);
+    }
+
+    return false;
+}
+
+const defaultThickness = 7;
+// const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
     private readonly context: CanvasRenderingContext2D;
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
     private readonly currentPen: IPen;
+    private bgColor: IColor = { r: 255, g: 255, b: 255, a: 1 };
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly model: IInk) {
         this.model.on("clear", this.redraw.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
         this.canvas.style.touchAction = "none";
-
-        this.canvas.addEventListener("pointerdown", this.handlePointerDown.bind(this));
-        this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
-        this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
-
-        // this.canvas.addEventListener("touchstart", this.handlePointerDown.bind(this));
-        // this.canvas.addEventListener("touchmove", this.handlePointerMove.bind(this));
-        // this.canvas.addEventListener("touchend", this.handlePointerUp.bind(this));
+        // safari not quite there with pointer events; drops some from apple pencil
+        if (!isiOS()) {
+            this.canvas.addEventListener("pointerdown", this.handlePointerDown.bind(this));
+            this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
+            this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
+        } else {
+            this.canvas.addEventListener("touchstart", this.handleTouchStart.bind(this));
+            this.canvas.addEventListener("touchmove", this.handleTouchMove.bind(this));
+            this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this));
+            this.canvas.addEventListener("touchleave", this.handleTouchEnd.bind(this));
+        }
 
         const context = this.canvas.getContext("2d");
         // eslint-disable-next-line no-null/no-null
@@ -134,14 +150,26 @@ export class InkCanvas {
 
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
-            thickness: 7,
+            thickness: defaultThickness,
         };
 
         this.sizeCanvasBackingStore();
     }
 
+    public setBgColor(color: IColor) {
+        this.bgColor = color;
+    }
+
     public setPenColor(color: IColor) {
         this.currentPen.color = color;
+        this.currentPen.erase = false;
+        this.currentPen.thickness = defaultThickness;
+    }
+
+    public setErase() {
+        this.currentPen.color = this.bgColor;
+        this.currentPen.erase = true;
+        this.currentPen.thickness = defaultThickness * 8;
     }
 
     public replay() {
@@ -188,6 +216,15 @@ export class InkCanvas {
         console.log(`ptr down ${evt.pointerId}`);
     }
 
+    private handleTouchStart(evt: TouchEvent) {
+        // for now ignore multi-touch
+        const touch = evt.touches[0];
+        const strokeId = this.model.createStroke(this.currentPen).id;
+        this.localActiveStrokeMap.set(touch.identifier, strokeId);
+        this.appendTouchToStroke(touch);
+        evt.preventDefault();
+    }
+
     private handlePointerMove(evt: PointerEvent) {
         if (this.localActiveStrokeMap.has(evt.pointerId)) {
             const evobj = (evt as any);
@@ -205,12 +242,25 @@ export class InkCanvas {
         console.log(`ptr move ${evt.pointerId}`);
     }
 
+    private handleTouchMove(evt: TouchEvent) {
+        this.appendTouchToStroke(evt.touches[0]);
+        evt.preventDefault();
+    }
+
     private handlePointerUp(evt: PointerEvent) {
         if (this.localActiveStrokeMap.has(evt.pointerId)) {
             this.appendPointerEventToStroke(evt);
             this.localActiveStrokeMap.delete(evt.pointerId);
         }
         console.log(`ptr up ${evt.pointerId}`);
+    }
+
+    private handleTouchEnd(evt: TouchEvent) {
+        const touch = evt.changedTouches[0];
+        if (this.localActiveStrokeMap.has(touch.identifier)) {
+            this.localActiveStrokeMap.delete(touch.identifier);
+        }
+        evt.preventDefault();
     }
 
     private appendPointerEventToStroke(evt: PointerEvent) {
@@ -223,6 +273,24 @@ export class InkCanvas {
             y: evt.offsetY,
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
+        };
+        this.model.appendPointToStroke(inkPt, strokeId);
+    }
+
+    private appendTouchToStroke(t: Touch) {
+        const strokeId = this.localActiveStrokeMap.get(t.identifier);
+        if (strokeId === undefined) {
+            throw new Error("Unexpected touch ID trying to append to stroke");
+        }
+        let pressure = 0.1;
+        if (t.force > 0) {
+            pressure = t.force;
+        }
+        const inkPt = {
+            x: t.clientX,
+            y: t.clientY,
+            time: Date.now(),
+            pressure,
         };
         this.model.appendPointToStroke(inkPt, strokeId);
     }
@@ -273,7 +341,11 @@ export class InkCanvas {
     ) {
         // TODO Consider save/restore context
         // TODO Consider half-pixel offset
-        this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+        if (pen.erase) {
+            this.context.fillStyle = `rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.g})`;
+        } else {
+            this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+        }
         drawShapes(this.context, previous, current, pen);
     }
 

@@ -111,6 +111,10 @@ export interface IPen {
      * Thickness of pen in pixels.
      */
     thickness: number;
+    /**
+     * Whether the intent is to erase; overrides color to current bg color.
+     */
+    erase?: boolean;
 }
 
 /**
