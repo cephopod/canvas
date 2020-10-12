@@ -102,7 +102,13 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         toggleTouchButton.addEventListener("click", () => { alert("touch toggle will go here"); });
         toggleTouchButton.appendChild(svgLibrary.iconMove());
 
+        const eraserButton = document.createElement("button");
+        eraserButton.classList.add("ink-toolbar-button");
+        eraserButton.addEventListener("click", () => { this.inkCanvas.setErase(); });
+        eraserButton.appendChild(svgLibrary.iconErase());
+
         inkToolbar.appendChild(colorButtonContainer);
+        inkToolbar.appendChild(eraserButton);
         inkToolbar.appendChild(replayButton);
         inkToolbar.appendChild(toggleTouchButton);
         inkToolbar.appendChild(clearButton);

@@ -117,11 +117,13 @@ function isiOS() {
     return false;
 }
 
+const defaultThickness = 7;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
     private readonly context: CanvasRenderingContext2D;
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
     private readonly currentPen: IPen;
+    private bgColor: IColor = { r: 255, g: 255, b: 255, a: 1 };
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly model: IInk) {
         this.model.on("clear", this.redraw.bind(this));
@@ -148,14 +150,26 @@ export class InkCanvas {
 
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
-            thickness: 7,
+            thickness: defaultThickness,
         };
 
         this.sizeCanvasBackingStore();
     }
 
+    public setBgColor(color: IColor) {
+        this.bgColor = color;
+    }
+
     public setPenColor(color: IColor) {
         this.currentPen.color = color;
+        this.currentPen.erase = false;
+        this.currentPen.thickness = defaultThickness;
+    }
+
+    public setErase() {
+        this.currentPen.color = this.bgColor;
+        this.currentPen.erase = true;
+        this.currentPen.thickness = defaultThickness * 8;
     }
 
     public replay() {
@@ -244,7 +258,6 @@ export class InkCanvas {
     private handleTouchEnd(evt: TouchEvent) {
         const touch = evt.changedTouches[0];
         if (this.localActiveStrokeMap.has(touch.identifier)) {
-            this.appendTouchToStroke(touch);
             this.localActiveStrokeMap.delete(touch.identifier);
         }
         evt.preventDefault();
@@ -328,7 +341,11 @@ export class InkCanvas {
     ) {
         // TODO Consider save/restore context
         // TODO Consider half-pixel offset
-        this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+        if (pen.erase) {
+            this.context.fillStyle = `rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.g})`;
+        } else {
+            this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+        }
         drawShapes(this.context, previous, current, pen);
     }
 
