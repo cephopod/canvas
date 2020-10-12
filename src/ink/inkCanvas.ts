@@ -124,6 +124,8 @@ export class InkCanvas {
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
     private readonly currentPen: IPen;
     private bgColor: IColor = { r: 255, g: 255, b: 255, a: 1 };
+    private scrollX = 0;
+    private scrollY = 0;
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly model: IInk) {
         this.model.on("clear", this.redraw.bind(this));
@@ -140,7 +142,7 @@ export class InkCanvas {
             this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this));
             this.canvas.addEventListener("touchleave", this.handleTouchEnd.bind(this));
         }
-
+        document.body.addEventListener("keydown", this.handlekeydown.bind(this));
         const context = this.canvas.getContext("2d");
         // eslint-disable-next-line no-null/no-null
         if (context === null) {
@@ -154,6 +156,31 @@ export class InkCanvas {
         };
 
         this.sizeCanvasBackingStore();
+    }
+
+    public handlekeydown(evt: KeyboardEvent) {
+        if (evt.key === "a") {
+            this.xlate(100, 100);
+        } else if (evt.key === "b") {
+            this.toOrigin();
+        }
+        evt.preventDefault();
+    }
+
+    public xlate(offX: number, offY: number) {
+        if ((offX !== 0) || (offY !== 0)) {
+            this.scrollX += offX;
+            this.scrollY += offY;
+            this.redraw();
+        }
+    }
+
+    public toOrigin() {
+        if ((this.scrollX !== 0) || (this.scrollY !== 0)) {
+            this.scrollX = 0;
+            this.scrollY = 0;
+            this.redraw();
+        }
     }
 
     public setBgColor(color: IColor) {
@@ -213,7 +240,6 @@ export class InkCanvas {
 
             evt.preventDefault();
         }
-        console.log(`ptr down ${evt.pointerId}`);
     }
 
     private handleTouchStart(evt: TouchEvent) {
@@ -239,7 +265,6 @@ export class InkCanvas {
                 this.appendPointerEventToStroke(e);
             }
         }
-        console.log(`ptr move ${evt.pointerId}`);
     }
 
     private handleTouchMove(evt: TouchEvent) {
@@ -252,7 +277,6 @@ export class InkCanvas {
             this.appendPointerEventToStroke(evt);
             this.localActiveStrokeMap.delete(evt.pointerId);
         }
-        console.log(`ptr up ${evt.pointerId}`);
     }
 
     private handleTouchEnd(evt: TouchEvent) {
@@ -269,8 +293,8 @@ export class InkCanvas {
             throw new Error("Unexpected pointer ID trying to append to stroke");
         }
         const inkPt = {
-            x: evt.offsetX,
-            y: evt.offsetY,
+            x: evt.offsetX + this.scrollX,
+            y: evt.offsetY + this.scrollY,
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
@@ -287,8 +311,8 @@ export class InkCanvas {
             pressure = t.force;
         }
         const inkPt = {
-            x: t.clientX,
-            y: t.clientY,
+            x: t.clientX + this.scrollX,
+            y: t.clientY + this.scrollY,
             time: Date.now(),
             pressure,
         };
@@ -346,7 +370,15 @@ export class InkCanvas {
         } else {
             this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
         }
-        drawShapes(this.context, previous, current, pen);
+        const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
+        const xlatePrev: IInkPoint = { x: previous.x, y: previous.y, time: previous.time, pressure: previous.pressure };
+
+        xlateCur.x -= this.scrollX;
+        xlateCur.y -= this.scrollY;
+        xlatePrev.x -= this.scrollX;
+        xlatePrev.y -= this.scrollY;
+
+        drawShapes(this.context, xlatePrev, xlateCur, pen);
     }
 
     private handleStylus(operation: IStylusOperation) {
