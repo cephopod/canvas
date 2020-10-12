@@ -18,12 +18,14 @@ html {
     height: 100%;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .ink-canvas {
-    height: 100%;
-    flex-grow: 1;
-    background-color: #ffffff;
+    height: 2388px;
+    width: 1668px;
+    // flex-grow: 1;
+    background-color: #fff;
     -webkit-touch-callout: none !important;
     -webkit-user-select: none !important;
 }
@@ -53,7 +55,11 @@ html {
     :hover {
         opacity: .75;
     }
-    
+   
+}
+
+.ink-toolbar-button.move-toggle {
+    color: yellow;
 }
 
 .ink-color-picker {

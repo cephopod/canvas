@@ -20,6 +20,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkCanvas: InkCanvas;
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
+    private moveToggle: boolean = false;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -46,6 +47,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkSurface.classList.add("ink-surface");
 
         const canvasElement = document.createElement("canvas");
+
         canvasElement.classList.add("ink-canvas");
 
         this.inkColorPicker = this.createColorPicker();
@@ -99,7 +101,10 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         const toggleTouchButton = document.createElement("button");
         toggleTouchButton.classList.add("ink-toolbar-button");
-        toggleTouchButton.addEventListener("click", () => { alert("touch toggle will go here"); });
+        toggleTouchButton.addEventListener("click", () => {
+            this.moveToggle = !this.moveToggle;
+            toggleTouchButton.classList.toggle("move-toggle");
+        });
         toggleTouchButton.appendChild(svgLibrary.iconMove());
 
         inkToolbar.appendChild(colorButtonContainer);
