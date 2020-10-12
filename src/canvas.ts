@@ -7,8 +7,9 @@ import { DataObject } from "@fluidframework/aqueduct";
 import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
-import { IColor, IInk, Ink, InkCanvas } from "./ink";
+import { IInk, Ink, InkCanvas } from "./ink";
 import { svgLibrary } from "./svgUtil";
+import { parseColor } from "./util";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
@@ -20,6 +21,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkCanvas: InkCanvas;
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
+    private moveToggle: boolean = false;
+    private currentColor: string = "rgba(0,0,0,1)";
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -46,6 +49,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkSurface.classList.add("ink-surface");
 
         const canvasElement = document.createElement("canvas");
+
         canvasElement.classList.add("ink-canvas");
 
         this.inkColorPicker = this.createColorPicker();
@@ -75,18 +79,6 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const inkToolbar = document.createElement("div");
         inkToolbar.classList.add("ink-toolbar");
 
-        const colorButtonContainer = document.createElement("div");
-        const colorButton = document.createElement("button");
-        colorButton.classList.add("ink-toolbar-button");
-        colorButton.setAttribute("id", "ink-toolbar-button-color");
-        colorButton.addEventListener("click", (event) => {
-            event.stopPropagation();
-            this.toggleColorPicker();
-        });
-        colorButton.appendChild(svgLibrary.iconPen("pen-svg"));
-        colorButtonContainer.appendChild(colorButton);
-        colorButtonContainer.appendChild(this.inkColorPicker);
-
         const replayButton = document.createElement("button");
         replayButton.classList.add("ink-toolbar-button");
         replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
@@ -99,13 +91,33 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         const toggleTouchButton = document.createElement("button");
         toggleTouchButton.classList.add("ink-toolbar-button");
-        toggleTouchButton.addEventListener("click", () => { alert("touch toggle will go here"); });
+        toggleTouchButton.addEventListener("click", () => {
+            this.moveToggle = !this.moveToggle;
+            toggleTouchButton.classList.toggle("move-toggle");
+        });
         toggleTouchButton.appendChild(svgLibrary.iconMove());
 
         const eraserButton = document.createElement("button");
         eraserButton.classList.add("ink-toolbar-button");
-        eraserButton.addEventListener("click", () => { this.inkCanvas.setErase(); });
+        eraserButton.addEventListener("click", () => {
+            eraserButton.classList.add("move-toggle");
+            this.inkCanvas.setErase();
+        });
         eraserButton.appendChild(svgLibrary.iconErase());
+
+        const colorButtonContainer = document.createElement("div");
+        const colorButton = document.createElement("button");
+        colorButton.classList.add("ink-toolbar-button");
+        colorButton.setAttribute("id", "ink-toolbar-button-color");
+        colorButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            this.inkCanvas.setPenColor(parseColor(this.currentColor));
+            eraserButton.classList.remove("move-toggle");
+            this.toggleColorPicker();
+        });
+        colorButton.appendChild(svgLibrary.iconPen("pen-svg"));
+        colorButtonContainer.appendChild(colorButton);
+        colorButtonContainer.appendChild(this.inkColorPicker);
 
         inkToolbar.appendChild(colorButtonContainer);
         inkToolbar.appendChild(eraserButton);
@@ -124,14 +136,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkColorPicker.classList.add("ink-color-picker");
         AColorPicker.createPicker(inkColorPicker, { color: "#000" }).on(
             "change", (p, c) => {
-                const rgb = c.replace(/[^\d,]/g, "").split(",");
-                const parsedColor: IColor = {
-                    r: Number(rgb[0]),
-                    g: Number(rgb[1]),
-                    b: Number(rgb[2]),
-                    a: 1,
-                };
-                this.inkCanvas.setPenColor(parsedColor);
+                this.inkCanvas.setPenColor(parseColor(c));
+                this.currentColor = c;
                 document.getElementById("pen-svg").setAttribute("fill", c);
             });
 
