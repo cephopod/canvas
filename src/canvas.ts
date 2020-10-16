@@ -7,6 +7,7 @@ import { DataObject } from "@fluidframework/aqueduct";
 import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
+import { Modal } from "./modal";
 import { IInk, Ink, InkCanvas } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor } from "./util";
@@ -86,7 +87,25 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         const clearButton = document.createElement("button");
         clearButton.classList.add("ink-toolbar-button");
-        clearButton.addEventListener("click", this.inkCanvas.clear.bind(this.inkCanvas));
+        clearButton.addEventListener("click", () => {
+            const clearModalBody = document.createElement("div");
+            const clearModalCancelButton = document.createElement("button");
+            const clearModalButton = document.createElement("button");
+            clearModalButton.innerHTML = "Confirm";
+            clearModalCancelButton.innerHTML = "Cancel";
+            clearModalCancelButton.classList.add("cancel");
+            clearModalBody.appendChild(clearModalButton);
+            clearModalBody.appendChild(clearModalCancelButton);
+            const clearModal = new Modal("clear", "Clear board?", clearModalBody);
+            clearModalButton.addEventListener("click", () => {
+                this.inkCanvas.clear();
+                clearModal.hideModal();
+            });
+            clearModalCancelButton.addEventListener("click", () => {
+                clearModal.hideModal();
+            });
+            clearModal.showModal();
+        });
         clearButton.appendChild(svgLibrary.iconX());
 
         const toggleTouchButton = document.createElement("button");
