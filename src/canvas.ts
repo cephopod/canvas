@@ -76,15 +76,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         return inkComponentRoot;
     }
 
-    private createToolbar() {
-        const inkToolbar = document.createElement("div");
-        inkToolbar.classList.add("ink-toolbar");
-
-        const replayButton = document.createElement("button");
-        replayButton.classList.add("ink-toolbar-button");
-        replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
-        replayButton.appendChild(svgLibrary.iconPlayCircle());
-
+    private makeClearButton() {
         const clearButton = document.createElement("button");
         clearButton.classList.add("ink-toolbar-button");
         clearButton.addEventListener("click", () => {
@@ -107,6 +99,18 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             clearModal.showModal();
         });
         clearButton.appendChild(svgLibrary.iconX());
+        return clearButton;
+    }
+
+    private createToolbar() {
+        const addClear = false;
+        const inkToolbar = document.createElement("div");
+        inkToolbar.classList.add("ink-toolbar");
+
+        const replayButton = document.createElement("button");
+        replayButton.classList.add("ink-toolbar-button");
+        replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
+        replayButton.appendChild(svgLibrary.iconPlayCircle());
 
         const toggleTouchButton = document.createElement("button");
         toggleTouchButton.classList.add("ink-toolbar-button");
@@ -142,8 +146,9 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkToolbar.appendChild(eraserButton);
         inkToolbar.appendChild(replayButton);
         inkToolbar.appendChild(toggleTouchButton);
-        inkToolbar.appendChild(clearButton);
-
+        if (addClear) {
+            inkToolbar.appendChild(this.makeClearButton());
+        }
         return inkToolbar;
     }
 

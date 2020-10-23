@@ -229,6 +229,16 @@ export class InkCanvas {
         this.redraw();
     }
 
+    private toPhysicalCoordinates(p: IPoint) {
+        p.x -= this.scrollX;
+        p.y -= this.scrollY;
+    }
+
+    private toLogicalCoordinates(p: IPoint) {
+        p.x += this.scrollX;
+        p.y += this.scrollY;
+    }
+
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
         if ((evt.pointerType === "pen") || (evt.pointerType === "touch") ||
@@ -293,11 +303,12 @@ export class InkCanvas {
             throw new Error("Unexpected pointer ID trying to append to stroke");
         }
         const inkPt = {
-            x: evt.offsetX + this.scrollX,
-            y: evt.offsetY + this.scrollY,
+            x: evt.offsetX,
+            y: evt.offsetY,
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
+        this.toLogicalCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
@@ -311,11 +322,12 @@ export class InkCanvas {
             pressure = t.force;
         }
         const inkPt = {
-            x: t.clientX + this.scrollX,
-            y: t.clientY + this.scrollY,
+            x: t.clientX,
+            y: t.clientY,
             time: Date.now(),
             pressure,
         };
+        this.toLogicalCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
@@ -373,10 +385,8 @@ export class InkCanvas {
         const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
         const xlatePrev: IInkPoint = { x: previous.x, y: previous.y, time: previous.time, pressure: previous.pressure };
 
-        xlateCur.x -= this.scrollX;
-        xlateCur.y -= this.scrollY;
-        xlatePrev.x -= this.scrollX;
-        xlatePrev.y -= this.scrollY;
+        this.toPhysicalCoordinates(xlateCur);
+        this.toPhysicalCoordinates(xlatePrev);
 
         drawShapes(this.context, xlatePrev, xlateCur, pen);
     }
