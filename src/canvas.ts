@@ -23,6 +23,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
     private moveToggle: boolean = false;
+    // private miniMap: HTMLDivElement;
     private currentColor: string = "rgba(0,0,0,1)";
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
@@ -103,7 +104,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     }
 
     private createToolbar() {
-        const addClear = false;
+        const addClear = true;
         const inkToolbar = document.createElement("div");
         inkToolbar.classList.add("ink-toolbar");
 

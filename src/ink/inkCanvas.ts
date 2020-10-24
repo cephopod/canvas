@@ -159,10 +159,21 @@ export class InkCanvas {
     }
 
     public handlekeydown(evt: KeyboardEvent) {
-        if (evt.key === "a") {
-            this.xlate(100, 100);
-        } else if (evt.key === "b") {
-            this.toOrigin();
+        switch (evt.key) {
+            case "ArrowDown":
+                this.scrollDown();
+                break;
+            case "ArrowUp":
+                this.scrollUp();
+                break;
+            case "ArrowLeft":
+                this.scrollLeft();
+                break;
+            case "ArrowRight":
+                this.scrollRight();
+                break;
+            default:
+                break;
         }
         evt.preventDefault();
     }
@@ -227,6 +238,30 @@ export class InkCanvas {
         this.context.scale(scale, scale);
 
         this.redraw();
+    }
+
+    public scrollLeft(factor = 2) {
+        if (this.scrollX > 0) {
+            const xoff = - Math.min(this.canvas.getBoundingClientRect().width / factor,
+              this.scrollX);
+            this.xlate(xoff,0);
+        }
+    }
+
+    public scrollRight(factor = 2) {
+        this.xlate(this.canvas.getBoundingClientRect().width / factor, 0);
+    }
+
+    public scrollUp(factor = 2) {
+        if (this.scrollY > 0) {
+            const yoff = - Math.min(this.canvas.getBoundingClientRect().height / factor,
+              this.scrollY);
+            this.xlate(0,yoff);
+        }
+    }
+
+    public scrollDown(factor = 2) {
+        this.xlate(0, this.canvas.getBoundingClientRect().height / factor);
     }
 
     private toPhysicalCoordinates(p: IPoint) {
