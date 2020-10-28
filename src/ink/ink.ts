@@ -31,7 +31,6 @@ import {
     IInkEvents,
 } from "./interfaces";
 import { InkData, ISerializableInk } from "./snapshot";
-
 /**
  * Filename where the snapshot is stored.
  */
@@ -213,6 +212,8 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         const stroke: IInkStroke = {
             id: operation.id,
             points: [],
+            loBound: { x: 0, y: 0 },
+            hiBound: { x: 0, y: 0 },
             pen: operation.pen,
         };
         this.inkData.addStroke(stroke);

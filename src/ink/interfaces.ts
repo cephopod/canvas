@@ -6,9 +6,9 @@
 import { ISharedObject, ISharedObjectEvents } from "@fluidframework/shared-object-base";
 
 /**
- * Data about a single point in an ink stroke
+ * Base 2D point.
  */
-export interface IInkPoint {
+export interface IPoint {
     /**
      * X coordinate
      */
@@ -18,7 +18,12 @@ export interface IInkPoint {
      * Y coordinate
      */
     y: number;
+}
 
+/**
+ * Data about a single point in an ink stroke
+ */
+export interface IInkPoint extends IPoint {
     /**
      * Time, in milliseconds, that the point was generated on the originating device.
      */
@@ -200,6 +205,14 @@ export interface IInkStroke {
      */
     points: IInkPoint[];
 
+    /**
+     * The min over x and y coordinates of points in the stroke.
+    */
+    loBound: IPoint;
+    /**
+     * The max over x and y coordinates of points in the stroke.
+     */
+    hiBound: IPoint;
     /**
      * Description of the pen used to create the stroke.
      */

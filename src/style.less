@@ -40,13 +40,29 @@ body {
     padding: .5rem;
     background-color: #35343b;
     position: absolute;
-    position: absolute;
     top:1rem;
     left: 50%;
     -webkit-transform: translateX(-50%);
     transform: translateX(-50%);
     height: 50px;
     box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+.mini-map {
+    background-color: #35343b;
+    width: 80px;
+    height: 50px;
+    padding: 2px;
+    margin-left: 0.5rem;
+    border: solid white 1px;
+    &:hover {
+        opacity: .75;
+    }
+}
+
+.mini-map-view {
+    position: relative;
+    border:white 2px dashed;
 }
 
 .ink-toolbar-button {
@@ -60,8 +76,7 @@ body {
     color: #fff;
     :hover {
         opacity: .75;
-    }
-   
+    }   
 }
 
 .ink-toolbar-button.move-toggle {

@@ -2,12 +2,7 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { IColor, IInk, IInkPoint, IInkStroke, IPen, IStylusOperation } from "./interfaces";
-
-interface IPoint {
-    x: number;
-    y: number;
-}
+import { IColor, IInk, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation } from "./interfaces";
 
 class Vector {
     /**
@@ -117,7 +112,7 @@ function isiOS() {
     return false;
 }
 
-const defaultThickness = 7;
+const defaultThickness = 4;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
     private readonly context: CanvasRenderingContext2D;
@@ -142,7 +137,6 @@ export class InkCanvas {
             this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this));
             this.canvas.addEventListener("touchleave", this.handleTouchEnd.bind(this));
         }
-        document.body.addEventListener("keydown", this.handlekeydown.bind(this));
         const context = this.canvas.getContext("2d");
         // eslint-disable-next-line no-null/no-null
         if (context === null) {
@@ -158,24 +152,12 @@ export class InkCanvas {
         this.sizeCanvasBackingStore();
     }
 
-    public handlekeydown(evt: KeyboardEvent) {
-        switch (evt.key) {
-            case "ArrowDown":
-                this.scrollDown();
-                break;
-            case "ArrowUp":
-                this.scrollUp();
-                break;
-            case "ArrowLeft":
-                this.scrollLeft();
-                break;
-            case "ArrowRight":
-                this.scrollRight();
-                break;
-            default:
-                break;
-        }
-        evt.preventDefault();
+    public getScrollX() {
+        return this.scrollX;
+    }
+
+    public getScrollY() {
+        return this.scrollY;
     }
 
     public xlate(offX: number, offY: number) {
@@ -240,11 +222,27 @@ export class InkCanvas {
         this.redraw();
     }
 
+    public getExtent() {
+        const extent: IPoint = { x: 0, y: 0 };
+        const strokes = this.model.getStrokes();
+        for (const stroke of strokes) {
+            for (const point of stroke.points) {
+                if (point.x > extent.x) {
+                    extent.x = point.x;
+                }
+                if (point.y > extent.y) {
+                    extent.y = point.y;
+                }
+            }
+        }
+        return extent;
+    }
+
     public scrollLeft(factor = 2) {
         if (this.scrollX > 0) {
             const xoff = - Math.min(this.canvas.getBoundingClientRect().width / factor,
-              this.scrollX);
-            this.xlate(xoff,0);
+                this.scrollX);
+            this.xlate(xoff, 0);
         }
     }
 
@@ -255,8 +253,8 @@ export class InkCanvas {
     public scrollUp(factor = 2) {
         if (this.scrollY > 0) {
             const yoff = - Math.min(this.canvas.getBoundingClientRect().height / factor,
-              this.scrollY);
-            this.xlate(0,yoff);
+                this.scrollY);
+            this.xlate(0, yoff);
         }
     }
 

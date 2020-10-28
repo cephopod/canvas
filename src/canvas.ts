@@ -23,12 +23,18 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
     private moveToggle: boolean = false;
-    // private miniMap: HTMLDivElement;
+    private miniMap: HTMLDivElement;
+    private inkComponentRoot: HTMLDivElement;
+    private boundingBox: DOMRect;
     private currentColor: string = "rgba(0,0,0,1)";
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
         this.sizeCanvas();
+        this.boundingBox = this.inkComponentRoot.getBoundingClientRect();
+        this.boundingBox.width *= 2;
+        this.boundingBox.height *= 2;
+        this.updateBounds();
 
         window.addEventListener("resize", this.sizeCanvas.bind(this));
     }
@@ -44,9 +50,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     }
 
     private createCanvasDom() {
-        const inkComponentRoot = document.createElement("div");
-        inkComponentRoot.classList.add("ink-component-root");
-
+        this.inkComponentRoot = document.createElement("div");
+        this.inkComponentRoot.classList.add("ink-component-root");
         const inkSurface = document.createElement("div");
         inkSurface.classList.add("ink-surface");
 
@@ -59,12 +64,11 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.inkCanvas = new InkCanvas(canvasElement, this.ink);
 
         const inkToolbar = this.createToolbar();
-
-        inkComponentRoot.appendChild(inkSurface);
+        this.inkComponentRoot.appendChild(inkSurface);
         inkSurface.appendChild(canvasElement);
         inkSurface.appendChild(inkToolbar);
 
-        inkComponentRoot.addEventListener("click", () =>
+        this.inkComponentRoot.addEventListener("click", () =>
             this.showingColorPicker ? this.toggleColorPicker() : undefined);
 
         this.inkCanvas.setPenColor({ r: 0, g: 0, b: 0, a: 1 });
@@ -73,8 +77,68 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         if (penSVG !== null) {
             penSVG.setAttribute("fill", "#000");
         }
+        document.body.addEventListener("keydown", this.handlekeydown.bind(this));
 
-        return inkComponentRoot;
+        return this.inkComponentRoot;
+    }
+
+    public handlekeydown(evt: KeyboardEvent) {
+        switch (evt.key) {
+            case "ArrowDown":
+                this.inkCanvas.scrollDown();
+                this.updateBounds();
+                break;
+            case "ArrowUp":
+                this.inkCanvas.scrollUp();
+                this.updateBounds();
+                break;
+            case "ArrowLeft":
+                this.inkCanvas.scrollLeft();
+                this.updateBounds();
+                break;
+            case "ArrowRight":
+                this.inkCanvas.scrollRight();
+                this.updateBounds();
+                break;
+            default:
+                break;
+        }
+        evt.preventDefault();
+    }
+
+    private createMinimap() {
+        this.miniMap = document.createElement("div");
+        this.miniMap.classList.add("mini-map");
+        const miniMapViewOutline = document.createElement("div");
+        miniMapViewOutline.classList.add("mini-map-view");
+        this.miniMap.appendChild(miniMapViewOutline);
+    }
+
+    private updateBounds() {
+        const boundingRect = this.inkComponentRoot.getBoundingClientRect();
+        const xextent = this.inkCanvas.getScrollX() + boundingRect.width;
+        const yextent = this.inkCanvas.getScrollY() + boundingRect.height;
+        if (xextent > this.boundingBox.width) {
+            this.boundingBox.width = xextent;
+        }
+        if (yextent > this.boundingBox.height) {
+            this.boundingBox.height = yextent;
+        }
+        const scaleW = boundingRect.width / this.boundingBox.width;
+        const scaleH = boundingRect.height / this.boundingBox.height;
+        const offX = this.inkCanvas.getScrollX() / this.boundingBox.width;
+        const offY = this.inkCanvas.getScrollY() / this.boundingBox.height;
+        const miniMapViewOutline = this.miniMap.firstElementChild as HTMLDivElement;
+        const w = this.miniMap.clientWidth - 6;
+        const h = this.miniMap.clientHeight - 6;
+        const left = Math.floor(offX * w);
+        miniMapViewOutline.style.left = `${left}px`;
+        const top = Math.floor(offY * h);
+        miniMapViewOutline.style.top = `${top}px`;
+        const width = Math.floor(scaleW * w);
+        miniMapViewOutline.style.width = `${width}px`;
+        const height = Math.floor(scaleH * h);
+        miniMapViewOutline.style.height = `${height}px`;
     }
 
     private makeClearButton() {
@@ -150,6 +214,9 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         if (addClear) {
             inkToolbar.appendChild(this.makeClearButton());
         }
+        this.createMinimap();
+        inkToolbar.appendChild(this.miniMap);
+
         return inkToolbar;
     }
 
