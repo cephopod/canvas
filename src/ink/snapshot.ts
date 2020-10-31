@@ -23,6 +23,10 @@ export interface ISerializableInk {
     strokeIndex: { [key: string]: number };
 }
 
+// TODO: make this variable and transmitted in serialized data
+export const InkCanvasWidth = 12000;
+export const InkCanvasHeight = 8000;
+
 /**
  * Maintains a live record of the data that can be used for snapshotting.
  */
@@ -46,6 +50,8 @@ export class InkData {
         this.strokeIndex = snapshot?.strokeIndex ?? {};
     }
 
+    public width = InkCanvasWidth;
+    public height = InkCanvasHeight;
     /**
      * {@inheritDoc IInk.getStrokes}
      */

@@ -152,6 +152,10 @@ export class InkCanvas {
         this.sizeCanvasBackingStore();
     }
 
+    public getCanvas() {
+        return this.canvas;
+    }
+
     public getScrollX() {
         return this.scrollX;
     }
@@ -236,30 +240,6 @@ export class InkCanvas {
             }
         }
         return extent;
-    }
-
-    public scrollLeft(factor = 2) {
-        if (this.scrollX > 0) {
-            const xoff = - Math.min(this.canvas.getBoundingClientRect().width / factor,
-                this.scrollX);
-            this.xlate(xoff, 0);
-        }
-    }
-
-    public scrollRight(factor = 2) {
-        this.xlate(this.canvas.getBoundingClientRect().width / factor, 0);
-    }
-
-    public scrollUp(factor = 2) {
-        if (this.scrollY > 0) {
-            const yoff = - Math.min(this.canvas.getBoundingClientRect().height / factor,
-                this.scrollY);
-            this.xlate(0, yoff);
-        }
-    }
-
-    public scrollDown(factor = 2) {
-        this.xlate(0, this.canvas.getBoundingClientRect().height / factor);
     }
 
     private toPhysicalCoordinates(p: IPoint) {

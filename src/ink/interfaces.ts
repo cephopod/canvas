@@ -101,6 +101,15 @@ export interface IInk extends ISharedObject<IInkEvents> {
      * @returns the requested stroke, or undefined if it does not exist
      */
     getStroke(key: string): IInkStroke;
+
+    /**
+     * Get width of ink surface.
+     */
+    getWidth(): number;
+    /**
+     * Get height of ink surface.
+     */
+    getHeight(): number;
 }
 
 /**

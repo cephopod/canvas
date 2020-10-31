@@ -31,6 +31,8 @@ import {
     IInkEvents,
 } from "./interfaces";
 import { InkData, ISerializableInk } from "./snapshot";
+import { QuadTree } from "./quadtree";
+import { Rectangle } from "./rectangle";
 /**
  * Filename where the snapshot is stored.
  */
@@ -41,6 +43,7 @@ const snapshotFileName = "header";
  * @sealed
  */
 export class Ink extends SharedObject<IInkEvents> implements IInk {
+    private strokeIndex: QuadTree<IInkPoint>;
     /**
      * Create a new Ink.
      * @param runtime - Data Store runtime the new Ink belongs to
@@ -71,8 +74,12 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
      */
     constructor(runtime: IFluidDataStoreRuntime, id: string, attributes: IChannelAttributes) {
         super(id, runtime, attributes);
+        this.initStrokeIndex();
     }
 
+    private initStrokeIndex() {
+        this.strokeIndex = new QuadTree<IInkPoint>(new Rectangle(0, 0, this.inkData.width, this.inkData.height));
+    }
     /**
      * {@inheritDoc IInk.createStroke}
      */
@@ -98,6 +105,14 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         };
         this.submitLocalMessage(stylusOperation, undefined);
         return this.executeStylusOperation(stylusOperation);
+    }
+
+    public getHeight() {
+        return this.inkData.height;
+    }
+
+    public getWidth() {
+        return this.inkData.width;
     }
 
     /**
@@ -200,6 +215,7 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
      */
     private executeClearOperation(operation: IClearOperation): void {
         this.inkData.clear();
+        this.initStrokeIndex();
         this.emit("clear", operation);
     }
 
@@ -231,6 +247,7 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         const stroke = this.getStroke(operation.id);
         if (stroke !== undefined) {
             stroke.points.push(operation.point);
+            this.strokeIndex.insert(operation.point, operation.id);
             this.emit("stylus", operation);
         }
         return stroke;

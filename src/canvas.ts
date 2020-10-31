@@ -25,15 +25,11 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private moveToggle: boolean = false;
     private miniMap: HTMLDivElement;
     private inkComponentRoot: HTMLDivElement;
-    private boundingBox: DOMRect;
     private currentColor: string = "rgba(0,0,0,1)";
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
         this.sizeCanvas();
-        this.boundingBox = this.inkComponentRoot.getBoundingClientRect();
-        this.boundingBox.width *= 2;
-        this.boundingBox.height *= 2;
         this.updateBounds();
 
         window.addEventListener("resize", this.sizeCanvas.bind(this));
@@ -82,23 +78,60 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         return this.inkComponentRoot;
     }
 
+    public scrollLeft(factor = 2) {
+        if (this.inkCanvas.getScrollX() > 0) {
+            const xoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().width / factor,
+                this.inkCanvas.getScrollX());
+            this.inkCanvas.xlate(xoff, 0);
+            this.updateBounds();
+        }
+    }
+
+    public scrollUp(factor = 2) {
+        if (this.inkCanvas.getScrollY() > 0) {
+            const yoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().height / factor,
+                this.inkCanvas.getScrollY());
+            this.inkCanvas.xlate(yoff, 0);
+        }
+    }
+
+    public scrollRight(factor = 2) {
+        const scrollX = this.inkCanvas.getScrollX();
+        const boundWidth = this.inkCanvas.getCanvas().getBoundingClientRect().width;
+        const maxScrollX = this.ink.getWidth() - boundWidth;
+        if (scrollX < maxScrollX) {
+            const remain = maxScrollX - scrollX;
+            const xoff = Math.min(boundWidth / factor, remain);
+            this.inkCanvas.xlate(xoff, 0);
+            this.updateBounds();
+        }
+    }
+
+    public scrollDown(factor = 2) {
+        const scrollY = this.inkCanvas.getScrollY();
+        const boundHeight = this.inkCanvas.getCanvas().getBoundingClientRect().height;
+        const maxScrollY = this.ink.getHeight() - boundHeight;
+        if (scrollY < maxScrollY) {
+            const remain = maxScrollY - scrollY;
+            const yoff = Math.min(boundHeight / factor, remain);
+            this.inkCanvas.xlate(0, yoff);
+            this.updateBounds();
+        }
+    }
+
     public handlekeydown(evt: KeyboardEvent) {
         switch (evt.key) {
             case "ArrowDown":
-                this.inkCanvas.scrollDown();
-                this.updateBounds();
+                this.scrollDown();
                 break;
             case "ArrowUp":
-                this.inkCanvas.scrollUp();
-                this.updateBounds();
+                this.scrollUp();
                 break;
             case "ArrowLeft":
-                this.inkCanvas.scrollLeft();
-                this.updateBounds();
+                this.scrollLeft();
                 break;
             case "ArrowRight":
-                this.inkCanvas.scrollRight();
-                this.updateBounds();
+                this.scrollRight();
                 break;
             default:
                 break;
@@ -116,18 +149,10 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
     private updateBounds() {
         const boundingRect = this.inkComponentRoot.getBoundingClientRect();
-        const xextent = this.inkCanvas.getScrollX() + boundingRect.width;
-        const yextent = this.inkCanvas.getScrollY() + boundingRect.height;
-        if (xextent > this.boundingBox.width) {
-            this.boundingBox.width = xextent;
-        }
-        if (yextent > this.boundingBox.height) {
-            this.boundingBox.height = yextent;
-        }
-        const scaleW = boundingRect.width / this.boundingBox.width;
-        const scaleH = boundingRect.height / this.boundingBox.height;
-        const offX = this.inkCanvas.getScrollX() / this.boundingBox.width;
-        const offY = this.inkCanvas.getScrollY() / this.boundingBox.height;
+        const scaleW = boundingRect.width / this.ink.getWidth();
+        const scaleH = boundingRect.height / this.ink.getHeight();
+        const offX = this.inkCanvas.getScrollX() / this.ink.getWidth();
+        const offY = this.inkCanvas.getScrollY() / this.ink.getHeight();
         const miniMapViewOutline = this.miniMap.firstElementChild as HTMLDivElement;
         const w = this.miniMap.clientWidth - 6;
         const h = this.miniMap.clientHeight - 6;
