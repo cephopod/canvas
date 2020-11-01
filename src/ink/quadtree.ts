@@ -1,9 +1,14 @@
 import { IPoint } from "./interfaces";
 import { Rectangle } from "./rectangle";
 
-export const MaxPointsInRegion = 1024;
+export const MaxPointsInRegion = 256;
+
+interface QTAnimations {
+    split(children: Rectangle[]): void;
+}
 
 export class QuadTree<T extends IPoint> {
+    animations: QTAnimations;
     ne: QuadTree<T> = undefined;
     nw: QuadTree<T> = undefined;
     se: QuadTree<T> = undefined;
@@ -11,8 +16,31 @@ export class QuadTree<T extends IPoint> {
     idToPoints = new Map<string, T[]>();
     anonymousPoints = [] as T[];
     count = 0;
+    registerId: (id: string, qt: QuadTree<T>, p: T) => void;
 
     constructor(public bounds: Rectangle) {
+    }
+
+    setIdRegistration(registerId: (id: string, qt: QuadTree<T>, p: T) => void) {
+        this.registerId = registerId;
+    }
+
+    setAnimations(qta: QTAnimations) {
+        this.animations = qta;
+    }
+
+    gather_intersect(box: Rectangle, rects: Rectangle[]) {
+        const isect = this.bounds.intersection(box);
+        if (isect !== undefined) {
+            if (this.ne === undefined) {
+                rects.push(isect);
+            } else {
+                this.ne.gather_intersect(isect, rects);
+                this.nw.gather_intersect(isect, rects);
+                this.se.gather_intersect(isect, rects);
+                this.sw.gather_intersect(isect, rects);
+            }
+        }
     }
 
     search(box: Rectangle, f: (p: T, id?: string) => boolean) {
@@ -64,17 +92,28 @@ export class QuadTree<T extends IPoint> {
         }
     }
 
+    spawn(r: Rectangle) {
+        const qt = new QuadTree<T>(r);
+        qt.registerId = this.registerId;
+        qt.animations = this.animations;
+        return qt;
+    }
+
     split() {
         const halfW = this.bounds.width / 2;
         const halfH = this.bounds.height / 2;
-        this.ne = new QuadTree<T>(new Rectangle(halfW, 0, halfW, halfH));
-        this.nw = new QuadTree<T>(new Rectangle(0, 0, halfW, halfH));
-        this.se = new QuadTree<T>(new Rectangle(halfW, halfH, halfW, halfH));
-        this.sw = new QuadTree<T>(new Rectangle(0, halfH, halfW, halfH));
+        this.ne = this.spawn(new Rectangle(this.bounds.x + halfW, this.bounds.y, halfW, halfH));
+        this.nw = this.spawn(new Rectangle(this.bounds.x, this.bounds.y, halfW, halfH));
+        this.se = this.spawn(new Rectangle(this.bounds.x + halfW, this.bounds.y + halfH, halfW, halfH));
+        this.sw = this.spawn(new Rectangle(this.bounds.x, this.bounds.y + halfH, halfW, halfH));
         this.distributePoints(this.anonymousPoints);
         this.idToPoints.forEach((pts, key) => this.distributePoints(pts, key));
         this.idToPoints = undefined;
         this.anonymousPoints = undefined;
+        this.count = 0;
+        if (this.animations !== undefined) {
+            this.animations.split([this.ne.bounds, this.nw.bounds, this.se.bounds, this.sw.bounds]);
+        }
     }
 
     addPoint(p: T, id?: string) {
@@ -83,6 +122,9 @@ export class QuadTree<T extends IPoint> {
             if (points === undefined) {
                 points = [] as T[];
                 this.idToPoints.set(id, points);
+                if (this.registerId !== undefined) {
+                    this.registerId(id, this, p);
+                }
             }
             points.push(p);
         } else {
@@ -92,7 +134,7 @@ export class QuadTree<T extends IPoint> {
     }
 
     insert(p: T, id?: string) {
-        if ((this.count < MaxPointsInRegion) && (this.ne === undefined)) {
+        if ((this.ne === undefined) && (this.count < MaxPointsInRegion)) {
             this.addPoint(p, id);
         } else {
             if (this.ne === undefined) {

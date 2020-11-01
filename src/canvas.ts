@@ -8,7 +8,7 @@ import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
-import { IInk, Ink, InkCanvas } from "./ink";
+import { IInk, Ink, InkCanvas, Rectangle } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor } from "./util";
 
@@ -18,13 +18,14 @@ import "./style.less";
 export class Canvas extends DataObject implements IFluidHTMLView {
     public get IFluidHTMLView() { return this; }
 
-    private ink: IInk;
+    private ink: Ink;
     private inkCanvas: InkCanvas;
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
     private moveToggle: boolean = false;
     private miniMap: HTMLDivElement;
     private inkComponentRoot: HTMLDivElement;
+    private indexOverlay: HTMLDivElement;
     private currentColor: string = "rgba(0,0,0,1)";
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
@@ -42,7 +43,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     protected async hasInitialized() {
         // Wait here for the ink
         const handle = await this.root.wait<IFluidHandle<IInk>>("pageInk");
-        this.ink = await handle.get();
+        this.ink = await handle.get() as Ink;
+        this.ink.splitListener = (rects) => this.addRectsToStrokeIndex(rects);
     }
 
     private createCanvasDom() {
@@ -78,6 +80,53 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         return this.inkComponentRoot;
     }
 
+    private hideStrokeIndex() {
+        if (this.indexOverlay !== undefined) {
+            this.inkComponentRoot.removeChild(this.indexOverlay);
+            this.indexOverlay = undefined;
+        }
+    }
+
+    private showStrokeIndex() {
+        this.hideStrokeIndex();
+        this.indexOverlay = document.createElement("div");
+
+        this.indexOverlay.classList.add("index-overlay");
+
+        const rects = [] as Rectangle[];
+        const bounds = this.inkCanvas.getCanvas().getBoundingClientRect();
+        const scrollX = this.inkCanvas.getScrollX();
+        const scrollY = this.inkCanvas.getScrollY();
+        const viewport = new Rectangle(scrollX, scrollY, bounds.width, bounds.height);
+        this.ink.gatherViewportRects(viewport, rects);
+        viewport.x = 0;
+        viewport.y = 0;
+        viewport.conformElement(this.indexOverlay);
+        this.inkComponentRoot.appendChild(this.indexOverlay);
+        for (const rect of rects) {
+            this.addToStrokeIndex(rect);
+        }
+    }
+
+    private addRectsToStrokeIndex(rects: Rectangle[]) {
+        if (this.indexOverlay !== undefined) {
+            for (const rect of rects) {
+                this.addToStrokeIndex(rect);
+            }
+        }
+    }
+
+    private addToStrokeIndex(rect: Rectangle) {
+        if (this.indexOverlay !== undefined) {
+            rect.x -= this.inkCanvas.getScrollX();
+            rect.y -= this.inkCanvas.getScrollY();
+            const div = document.createElement("div");
+            div.classList.add("index-item");
+            rect.conformElement(div);
+            this.indexOverlay.appendChild(div);
+        }
+    }
+
     public scrollLeft(factor = 2) {
         if (this.inkCanvas.getScrollX() > 0) {
             const xoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().width / factor,
@@ -91,7 +140,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         if (this.inkCanvas.getScrollY() > 0) {
             const yoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().height / factor,
                 this.inkCanvas.getScrollY());
-            this.inkCanvas.xlate(yoff, 0);
+            this.inkCanvas.xlate(0, yoff);
+            this.updateBounds();
         }
     }
 
@@ -133,6 +183,12 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             case "ArrowRight":
                 this.scrollRight();
                 break;
+            case "r":
+                this.showStrokeIndex();
+                break;
+            case "h":
+                this.hideStrokeIndex();
+                break;
             default:
                 break;
         }
@@ -164,6 +220,9 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         miniMapViewOutline.style.width = `${width}px`;
         const height = Math.floor(scaleH * h);
         miniMapViewOutline.style.height = `${height}px`;
+        if (this.indexOverlay !== undefined) {
+            this.showStrokeIndex();
+        }
     }
 
     private makeClearButton() {

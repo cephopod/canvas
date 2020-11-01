@@ -43,7 +43,9 @@ const snapshotFileName = "header";
  * @sealed
  */
 export class Ink extends SharedObject<IInkEvents> implements IInk {
-    private strokeIndex: QuadTree<IInkPoint>;
+    public strokeIndex: QuadTree<IInkPoint>;
+    public splitListener: (rects: Rectangle[]) => void;
+    public strokeIdToBoxes: Map<string, QuadTree<IInkPoint>[]>;
     /**
      * Create a new Ink.
      * @param runtime - Data Store runtime the new Ink belongs to
@@ -62,6 +64,10 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         return new InkFactory();
     }
 
+    public gatherViewportRects(viewport: Rectangle, result: Rectangle[]) {
+        this.strokeIndex.gather_intersect(viewport, result);
+    }
+
     /**
      * The current ink snapshot.
      */
@@ -77,8 +83,26 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         this.initStrokeIndex();
     }
 
+    private registerId(id: string, qt: QuadTree<IInkPoint>) {
+        let qts = this.strokeIdToBoxes.get(id);
+        if (qts === undefined) {
+            qts = [] as QuadTree<IInkPoint>[];
+            this.strokeIdToBoxes.set(id, qts);
+        }
+        qts.push(qt);
+    }
+
+    private splitEvent(rects: Rectangle[]) {
+        if (this.splitListener !== undefined) {
+            this.splitListener(rects);
+        }
+    }
+
     private initStrokeIndex() {
         this.strokeIndex = new QuadTree<IInkPoint>(new Rectangle(0, 0, this.inkData.width, this.inkData.height));
+        this.strokeIdToBoxes = new Map<string, QuadTree<IInkPoint>[]>();
+        this.strokeIndex.setIdRegistration((id, qt) => this.registerId(id, qt));
+        this.strokeIndex.setAnimations({ split: (rects) => this.splitEvent(rects) });
     }
     /**
      * {@inheritDoc IInk.createStroke}
