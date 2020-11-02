@@ -230,13 +230,14 @@ export class InkCanvas {
     public scratchOut(text: string) {
         if (this.diagPad === undefined) {
             this.diagPad = document.createElement("div");
-            this.diagPad.style.position = "relative";
+            this.diagPad.style.position = "absolute";
+            this.diagPad.style.zIndex = "50";
             this.diagPad.style.left = "10px";
             this.diagPad.style.top = "200px";
             this.diagPad.style.width = "300px";
             this.diagPad.style.height = "200px";
             this.diagPad.style.color = "black";
-            this.canvas.appendChild(this.diagPad);
+            document.body.appendChild(this.diagPad);
         }
         this.diagPad.innerText = text;
     }
