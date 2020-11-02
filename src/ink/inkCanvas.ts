@@ -226,6 +226,11 @@ export class InkCanvas {
         this.redraw();
     }
 
+    public scratchOut(text: string) {
+        this.context.font = "18px serif";
+        this.context.fillText(text, 10, 10, 300);
+    }
+
     public getExtent() {
         const extent: IPoint = { x: 0, y: 0 };
         const strokes = this.model.getStrokes();
@@ -254,7 +259,7 @@ export class InkCanvas {
 
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
-        if ((evt.pointerType === "pen") || (evt.pointerType === "touch") ||
+        if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0))) {
             const strokeId = this.model.createStroke(this.currentPen).id;
             this.localActiveStrokeMap.set(evt.pointerId, strokeId);
@@ -262,6 +267,8 @@ export class InkCanvas {
             this.appendPointerEventToStroke(evt);
 
             evt.preventDefault();
+        } else if (evt.pointerType === "touch") {
+            this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY}`);
         }
     }
 
@@ -275,18 +282,23 @@ export class InkCanvas {
     }
 
     private handlePointerMove(evt: PointerEvent) {
-        if (this.localActiveStrokeMap.has(evt.pointerId)) {
-            const evobj = (evt as any);
-            let evts: PointerEvent[];
-            if (evobj.getCoalescedEvents !== undefined) {
-                evts = evobj.getCoalescedEvents();
+        if ((evt.pointerType === "pen") ||
+            ((evt.pointerType === "mouse") && (evt.button === 0))) {
+            if (this.localActiveStrokeMap.has(evt.pointerId)) {
+                const evobj = (evt as any);
+                let evts: PointerEvent[];
+                if (evobj.getCoalescedEvents !== undefined) {
+                    evts = evobj.getCoalescedEvents();
+                }
+                if (evts === undefined) {
+                    evts = [evt];
+                }
+                for (const e of evts) {
+                    this.appendPointerEventToStroke(e);
+                }
             }
-            if (evts === undefined) {
-                evts = [evt];
-            }
-            for (const e of evts) {
-                this.appendPointerEventToStroke(e);
-            }
+        } else if (evt.pointerType === "touch") {
+            this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
         }
     }
 
@@ -296,9 +308,14 @@ export class InkCanvas {
     }
 
     private handlePointerUp(evt: PointerEvent) {
-        if (this.localActiveStrokeMap.has(evt.pointerId)) {
-            this.appendPointerEventToStroke(evt);
-            this.localActiveStrokeMap.delete(evt.pointerId);
+        if ((evt.pointerType === "pen") ||
+            ((evt.pointerType === "mouse") && (evt.button === 0))) {
+            if (this.localActiveStrokeMap.has(evt.pointerId)) {
+                this.appendPointerEventToStroke(evt);
+                this.localActiveStrokeMap.delete(evt.pointerId);
+            }
+        } else if (evt.pointerType === "touch") {
+            this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
         }
     }
 
