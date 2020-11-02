@@ -227,8 +227,10 @@ export class InkCanvas {
     }
 
     public scratchOut(text: string) {
-        this.context.font = "18px serif";
-        this.context.fillText(text, 10, 10, 300);
+        this.context.font = "48px serif";
+        this.context.clearRect(10, 200, 300, 200);
+        this.context.fillStyle = "black";
+        this.context.fillText(text, 10, 200, 300);
     }
 
     public getExtent() {
