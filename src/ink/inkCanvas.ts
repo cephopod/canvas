@@ -121,6 +121,7 @@ export class InkCanvas {
     private bgColor: IColor = { r: 255, g: 255, b: 255, a: 1 };
     private scrollX = 0;
     private scrollY = 0;
+    private diagPad: HTMLDivElement;
 
     constructor(private readonly canvas: HTMLCanvasElement, private readonly model: IInk) {
         this.model.on("clear", this.redraw.bind(this));
@@ -227,10 +228,17 @@ export class InkCanvas {
     }
 
     public scratchOut(text: string) {
-        this.context.font = "48px serif";
-        this.context.clearRect(10, 200, 300, 200);
-        this.context.fillStyle = "black";
-        this.context.fillText(text, 10, 200, 300);
+        if (this.diagPad === undefined) {
+            this.diagPad = document.createElement("div");
+            this.diagPad.style.position = "relative";
+            this.diagPad.style.left = "10px";
+            this.diagPad.style.top = "200px";
+            this.diagPad.style.width = "300px";
+            this.diagPad.style.height = "200px";
+            this.diagPad.style.color = "black";
+            this.canvas.appendChild(this.diagPad);
+        }
+        this.diagPad.innerText = text;
     }
 
     public getExtent() {
