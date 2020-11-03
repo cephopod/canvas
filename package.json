@@ -22,6 +22,7 @@
     "lint:fix": "npm run eslint:fix",
     "prepack": "npm run webpack",
     "start": "webpack-dev-server --config webpack.config.js --package package.json",
+    "start:net": "webpack-dev-server --config webpack.config.js --package package.json --host 0.0.0.0 --disableHostCheck",
     "start:docker": "webpack-dev-server --config webpack.npmconfig.js --package package.json --env.mode docker",
     "start:r11s": "webpack-dev-server --config webpack.config.js --package package.json --env.mode r11s",
     "start:tinylicious": "webpack-dev-server --config webpack.config.js --package package.json --env.mode tinylicious --host 0.0.0.0 --disableHostCheck",

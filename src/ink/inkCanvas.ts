@@ -2,7 +2,8 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { IColor, IInk, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation } from "./interfaces";
+import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation } from "./interfaces";
+import { Ink, Rectangle } from ".";
 
 class Vector {
     /**
@@ -112,18 +113,29 @@ function isiOS() {
     return false;
 }
 
+interface IActiveTouch {
+    id: number;
+    touchtime: number;
+    x: number;
+    y: number;
+}
+
+const eraserWidth = 32;
+const eraserHeight = 20;
 const defaultThickness = 4;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
     private readonly context: CanvasRenderingContext2D;
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
+    private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
     private readonly currentPen: IPen;
-    private bgColor: IColor = { r: 255, g: 255, b: 255, a: 1 };
     private scrollX = 0;
     private scrollY = 0;
     private diagPad: HTMLDivElement;
+    private eraseMode = false;
+    public scrollHandler: (dx: number, dy: number) => void;
 
-    constructor(private readonly canvas: HTMLCanvasElement, private readonly model: IInk) {
+    constructor(private readonly canvas: HTMLCanvasElement, private readonly model: Ink) {
         this.model.on("clear", this.redraw.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
         this.canvas.style.touchAction = "none";
@@ -181,20 +193,14 @@ export class InkCanvas {
         }
     }
 
-    public setBgColor(color: IColor) {
-        this.bgColor = color;
-    }
-
     public setPenColor(color: IColor) {
         this.currentPen.color = color;
-        this.currentPen.erase = false;
         this.currentPen.thickness = defaultThickness;
+        this.eraseMode = false;
     }
 
     public setErase() {
-        this.currentPen.color = this.bgColor;
-        this.currentPen.erase = true;
-        this.currentPen.thickness = defaultThickness * 8;
+        this.eraseMode = true;
     }
 
     public replay() {
@@ -268,18 +274,36 @@ export class InkCanvas {
         p.y += this.scrollY;
     }
 
+    private eraseStrokesAt(x: number, y: number) {
+        const strokes = [] as IInkStroke[];
+        const searchBox = new Rectangle(x + this.scrollX, y + this.scrollY, eraserWidth, eraserHeight);
+        this.model.strokeIndex.search(searchBox, (p, id) => {
+            if (id !== undefined) {
+                const stroke = this.model.getStroke(id);
+                strokes.push(stroke);
+                // TODO: remove stroke from index here
+                return true;
+            }
+            return false;
+        });
+    }
+
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0))) {
-            const strokeId = this.model.createStroke(this.currentPen).id;
-            this.localActiveStrokeMap.set(evt.pointerId, strokeId);
+            if (this.eraseMode) {
+                this.eraseStrokesAt(evt.clientX, evt.clientY);
+            } else {
+                const strokeId = this.model.createStroke(this.currentPen).id;
+                this.localActiveStrokeMap.set(evt.pointerId, strokeId);
 
-            this.appendPointerEventToStroke(evt);
-
+                this.appendPointerEventToStroke(evt);
+            }
             evt.preventDefault();
         } else if (evt.pointerType === "touch") {
-            this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY}`);
+            // this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY} ${evt.pointerId}`);
+            this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(), x: evt.clientX, y: evt.clientY });
         }
     }
 
@@ -294,7 +318,7 @@ export class InkCanvas {
 
     private handlePointerMove(evt: PointerEvent) {
         if ((evt.pointerType === "pen") ||
-            ((evt.pointerType === "mouse") && (evt.button === 0))) {
+            ((evt.pointerType === "mouse") && (evt.buttons === 1))) {
             if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 const evobj = (evt as any);
                 let evts: PointerEvent[];
@@ -309,7 +333,21 @@ export class InkCanvas {
                 }
             }
         } else if (evt.pointerType === "touch") {
-            this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
+            const t = this.localActiveTouchMap.get(evt.pointerId);
+            if (t !== undefined) {
+                const dx = Math.floor(evt.clientX - t.x);
+                const dy = Math.floor(evt.clientY - t.y);
+                // const dt = Math.max(Date.now() - t.touchtime, 1);
+                // const vx = (1000 * (dx / dt)).toFixed(1);
+                // const vy = (1000 * (dy / dt)).toFixed(1);
+                // this.scratchOut(`touchmove dx = ${dx} dy = ${dy} dt = ${dt} vx=${vx} vy=${vy}`);
+                if (this.scrollHandler !== undefined) {
+                    this.scrollHandler(-dx, -dy);
+                }
+                this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(), x: evt.clientX, y: evt.clientY });
+            } else {
+                // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
+            }
         }
     }
 
@@ -326,7 +364,9 @@ export class InkCanvas {
                 this.localActiveStrokeMap.delete(evt.pointerId);
             }
         } else if (evt.pointerType === "touch") {
-            this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
+            // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
+            // momentum scroll here 
+            this.localActiveTouchMap.set(evt.pointerId, undefined);
         }
     }
 
@@ -416,13 +456,7 @@ export class InkCanvas {
         current: IInkPoint,
         previous: IInkPoint,
     ) {
-        // TODO Consider save/restore context
-        // TODO Consider half-pixel offset
-        if (pen.erase) {
-            this.context.fillStyle = `rgb(${this.bgColor.r}, ${this.bgColor.g}, ${this.bgColor.g})`;
-        } else {
-            this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
-        }
+        this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
         const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
         const xlatePrev: IInkPoint = { x: previous.x, y: previous.y, time: previous.time, pressure: previous.pressure };
 

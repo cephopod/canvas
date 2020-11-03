@@ -110,7 +110,7 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
     public createStroke(pen: IPen): IInkStroke {
         const createStrokeOperation: ICreateStrokeOperation = {
             id: uuid(),
-            pen,
+            pen: { color: pen.color, thickness: pen.thickness},
             time: Date.now(),
             type: "createStroke",
         };

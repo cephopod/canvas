@@ -60,7 +60,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.inkColorPicker = this.createColorPicker();
 
         this.inkCanvas = new InkCanvas(canvasElement, this.ink);
-
+        this.inkCanvas.scrollHandler = (dx, dy) => this.pan(dx, dy);
         const inkToolbar = this.createToolbar();
         this.inkComponentRoot.appendChild(inkSurface);
         inkSurface.appendChild(canvasElement);
@@ -124,6 +124,23 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             div.classList.add("index-item");
             rect.conformElement(div);
             this.indexOverlay.appendChild(div);
+        }
+    }
+
+    public pan(dx: number, dy: number) {
+        if ((dx != 0) || (dy != 0)) {
+            const scrollX = this.inkCanvas.getScrollX();
+            const scrollY = this.inkCanvas.getScrollY();
+            const boundWidth = this.inkCanvas.getCanvas().getBoundingClientRect().width;
+            const maxScrollX = this.ink.getWidth() - boundWidth;
+            const boundHeight = this.inkCanvas.getCanvas().getBoundingClientRect().height;
+            const maxScrollY = this.ink.getHeight() - boundHeight;
+            const nx = Math.min(maxScrollX, Math.max(0, scrollX + dx));
+            const ny = Math.min(maxScrollY, Math.max(0, scrollY+ dy));
+            if ((nx !== scrollX) || (ny !== scrollY)) {
+                this.inkCanvas.xlate(nx - scrollX, ny - scrollY);
+                this.updateBounds();
+            }
         }
     }
 
