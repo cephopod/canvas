@@ -128,7 +128,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     }
 
     public pan(dx: number, dy: number) {
-        if ((dx != 0) || (dy != 0)) {
+        if ((dx !== 0) || (dy !== 0)) {
             const scrollX = this.inkCanvas.getScrollX();
             const scrollY = this.inkCanvas.getScrollY();
             const boundWidth = this.inkCanvas.getCanvas().getBoundingClientRect().width;
@@ -136,7 +136,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             const boundHeight = this.inkCanvas.getCanvas().getBoundingClientRect().height;
             const maxScrollY = this.ink.getHeight() - boundHeight;
             const nx = Math.min(maxScrollX, Math.max(0, scrollX + dx));
-            const ny = Math.min(maxScrollY, Math.max(0, scrollY+ dy));
+            const ny = Math.min(maxScrollY, Math.max(0, scrollY + dy));
             if ((nx !== scrollX) || (ny !== scrollY)) {
                 this.inkCanvas.xlate(nx - scrollX, ny - scrollY);
                 this.updateBounds();

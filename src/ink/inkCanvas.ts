@@ -303,7 +303,10 @@ export class InkCanvas {
             evt.preventDefault();
         } else if (evt.pointerType === "touch") {
             // this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY} ${evt.pointerId}`);
-            this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(), x: evt.clientX, y: evt.clientY });
+            this.localActiveTouchMap.set(evt.pointerId, {
+                id: evt.pointerId, touchtime: Date.now(),
+                x: evt.clientX, y: evt.clientY,
+            });
         }
     }
 
@@ -344,7 +347,8 @@ export class InkCanvas {
                 if (this.scrollHandler !== undefined) {
                     this.scrollHandler(-dx, -dy);
                 }
-                this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(), x: evt.clientX, y: evt.clientY });
+                this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(),
+                    x: evt.clientX, y: evt.clientY });
             } else {
                 // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
             }
@@ -365,7 +369,7 @@ export class InkCanvas {
             }
         } else if (evt.pointerType === "touch") {
             // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
-            // momentum scroll here 
+            // momentum scroll here
             this.localActiveTouchMap.set(evt.pointerId, undefined);
         }
     }
