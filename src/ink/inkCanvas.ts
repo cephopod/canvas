@@ -225,18 +225,19 @@ export class InkCanvas {
     }
 
     public zoom(f: number, cx: number, cy: number) {
-        const minWidth = this.model.getWidth() / 16;
-        const minHeight = this.model.getHeight() / 16;
+        const minWidth = this.viewportCoords.pw / 4;
+        const minHeight = this.viewportCoords.ph / 4;
         if (f > 0.0) {
             let nw = this.viewportCoords.width / f;
             let nh = this.viewportCoords.height / f;
             if ((nw > this.model.getWidth()) || (nh > this.model.getHeight())) {
                 // max zoom
-                this.viewportCoords.x = 0;
-                this.viewportCoords.y = 0;
-                this.viewportCoords.width = this.model.getWidth();
-                this.viewportCoords.height = this.model.getHeight();
-                console.log(`${this.viewportCoords.x} ${this.viewportCoords.y} ${nw} ${nh}`);
+                if (this.model.getWidth() > this.model.getHeight()) {
+                    nh = this.model.getHeight();
+                    nw = (this.viewportCoords.pw / this.viewportCoords.ph) * nh;
+                }
+                this.viewportCoords.width = nw;
+                this.viewportCoords.height = nh;
                 this.resize();
             }
             else if ((nw !== this.viewportCoords.width) || (nh !== this.viewportCoords.height)) {
@@ -253,7 +254,6 @@ export class InkCanvas {
                 }
                 // this.viewportCoords.x = Math.max(0, cx - (nw / 2.0));
                 // this.viewportCoords.y = Math.max(0, cy - (nh / 2.0));
-                console.log(`${this.viewportCoords.x} ${this.viewportCoords.y} ${nw} ${nh}`);
                 this.resize();
             }
         }
