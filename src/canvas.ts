@@ -22,7 +22,6 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkCanvas: InkCanvas;
     private inkColorPicker: HTMLDivElement;
     private showingColorPicker: boolean = false;
-    private moveToggle: boolean = false;
     private miniMap: HTMLDivElement;
     private inkComponentRoot: HTMLDivElement;
     private indexOverlay: HTMLDivElement;
@@ -73,6 +72,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.inkComponentRoot.appendChild(inkSurface);
         inkSurface.appendChild(viewportElement);
         inkSurface.appendChild(inkToolbar);
+        this.createMinimap();
+        inkSurface.appendChild(this.miniMap);
 
         this.inkComponentRoot.addEventListener("click", () =>
             this.showingColorPicker ? this.toggleColorPicker() : undefined);
@@ -300,14 +301,6 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
         replayButton.appendChild(svgLibrary.iconPlayCircle());
 
-        const toggleTouchButton = document.createElement("button");
-        toggleTouchButton.classList.add("ink-toolbar-button");
-        toggleTouchButton.addEventListener("click", () => {
-            this.moveToggle = !this.moveToggle;
-            toggleTouchButton.classList.toggle("move-toggle");
-        });
-        toggleTouchButton.appendChild(svgLibrary.iconMove());
-
         const eraserButton = document.createElement("button");
         eraserButton.classList.add("ink-toolbar-button");
         eraserButton.addEventListener("click", () => {
@@ -333,13 +326,9 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         inkToolbar.appendChild(colorButtonContainer);
         inkToolbar.appendChild(eraserButton);
         inkToolbar.appendChild(replayButton);
-        inkToolbar.appendChild(toggleTouchButton);
         if (addClear) {
             inkToolbar.appendChild(this.makeClearButton());
         }
-        this.createMinimap();
-        inkToolbar.appendChild(this.miniMap);
-
         return inkToolbar;
     }
 
