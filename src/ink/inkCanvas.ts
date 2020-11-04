@@ -5,6 +5,8 @@
 import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation } from "./interfaces";
 import { Ink, Rectangle } from ".";
 
+const Nope = -1;
+
 class Vector {
     /**
      * Returns the vector resulting from rotating vector by angle
@@ -120,6 +122,7 @@ interface IActiveTouch {
     touchtime: number;
     x: number;
     y: number;
+    prevdiff?: number;
 }
 
 /**
@@ -156,7 +159,8 @@ export class InkCanvas {
     private eraseMode = false;
     private readonly drawingSurface: HTMLCanvasElement;
     private readonly drawingContext: CanvasRenderingContext2D;
-    public scrollHandler: (dx: number, dy: number) => void;
+    public panHandler: (dx: number, dy: number) => void;
+    public zoomHandler: (d: number) => void;
     public readonly viewportCoords: IViewportCoords;
 
     constructor(private readonly viewport: HTMLCanvasElement, private readonly model: Ink) {
@@ -185,7 +189,7 @@ export class InkCanvas {
         this.drawingSurface.height = model.getHeight();
         this.drawingContext = this.drawingSurface.getContext("2d");
         this.viewport.appendChild(this.drawingSurface);
-        this.drawingSurface.style.zIndex = "-10";
+        this.drawingSurface.style.zIndex = "Nope0";
         this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
@@ -359,24 +363,52 @@ export class InkCanvas {
             }
         } else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && evt.ctrlKey)) {
-            const t = this.localActiveTouchMap.get(evt.pointerId);
-            if (t !== undefined) {
-                const dx = Math.floor(evt.clientX - t.x);
-                const dy = Math.floor(evt.clientY - t.y);
-                // const dt = Math.max(Date.now() - t.touchtime, 1);
-                // const vx = (1000 * (dx / dt)).toFixed(1);
-                // const vy = (1000 * (dy / dt)).toFixed(1);
-                // this.scratchOut(`touchmove dx = ${dx} dy = ${dy} dt = ${dt} vx=${vx} vy=${vy}`);
-                if (this.scrollHandler !== undefined) {
-                    this.scrollHandler(-dx, -dy);
+            let d = Nope;
+            if (this.localActiveTouchMap.size === 1) {
+                const t = this.localActiveTouchMap.get(evt.pointerId);
+                if (t !== undefined) {
+                    // single touch is pan
+                    const dx = Math.floor(evt.clientX - t.x);
+                    const dy = Math.floor(evt.clientY - t.y);
+                    // const dt = Math.max(Date.now() - t.touchtime, 1);
+                    // const vx = (1000 * (dx / dt)).toFixed(1);
+                    // const vy = (1000 * (dy / dt)).toFixed(1);
+                    // this.scratchOut(`touchmove dx = ${dx} dy = ${dy} dt = ${dt} vx=${vx} vy=${vy}`);
+                    if (this.panHandler !== undefined) {
+                        this.panHandler(-dx, -dy);
+                    }
                 }
-                this.localActiveTouchMap.set(evt.pointerId, {
-                    id: evt.pointerId, touchtime: Date.now(),
-                    x: evt.clientX, y: evt.clientY,
-                });
-            } else {
-                // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
             }
+            else if (this.localActiveTouchMap.size === 2) {
+                // two fingers is zoom
+                let prevX = Nope;
+                let prevY = Nope;
+                let sum = 0;
+                let prevdiff = Nope;
+                for (const t of this.localActiveTouchMap.values()) {
+                    if (prevX >= 0) {
+                        const dx = t.x - prevX;
+                        const dy = t.y - prevY;
+                        sum += (dx * dx) + (dy * dy);
+                    } else {
+                        prevX = t.x;
+                        prevY = t.y;
+                    }
+                    if (t.id !== evt.pointerId) {
+                        prevdiff = t.prevdiff;
+                    }
+                }
+                d = Math.sqrt(sum);
+                if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
+                    this.zoomHandler(d - prevdiff);
+                }
+            }
+            this.localActiveTouchMap.set(evt.pointerId, {
+                id: evt.pointerId, touchtime: Date.now(),
+                x: evt.clientX, y: evt.clientY, prevdiff: d,
+            });
+        } else {
+            // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
         }
     }
 
@@ -396,7 +428,7 @@ export class InkCanvas {
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
             // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
             // momentum scroll here
-            this.localActiveTouchMap.set(evt.pointerId, undefined);
+            this.localActiveTouchMap.delete(evt.pointerId);
         }
     }
 
