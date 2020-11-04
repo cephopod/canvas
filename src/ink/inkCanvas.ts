@@ -65,6 +65,8 @@ function drawShapes(
     endPoint: IInkPoint,
     pen: IPen,
 ): void {
+    context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+    console.log(`start ${startPoint.x}, ${startPoint.y} end ${endPoint.x}, ${endPoint.y} r ${pen.color.r}`);
     const dirVector = new Vector(
         endPoint.x - startPoint.x,
         endPoint.y - startPoint.y);
@@ -120,77 +122,137 @@ interface IActiveTouch {
     y: number;
 }
 
+/**
+ * The rectangle represents vx, vy, vw, vh in canvas coordinates.
+ */
+interface IViewportCoords extends Rectangle {
+    /**
+     *  vw / pw
+     */
+    scaleX: number;
+    /**
+     *  vh / ph
+     */
+    scaleY: number;
+    /**
+     * Physical width of viewport canvas.
+     */
+    pw: number;
+    /**
+     * Physical Height of viewport canvas.
+     */
+    ph: number;
+}
+
 const eraserWidth = 32;
 const eraserHeight = 20;
 const defaultThickness = 4;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
-    private readonly context: CanvasRenderingContext2D;
+    private readonly viewportContext: CanvasRenderingContext2D;
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
     private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
     private readonly currentPen: IPen;
-    private scrollX = 0;
-    private scrollY = 0;
-    private diagPad: HTMLDivElement;
     private eraseMode = false;
+    private readonly drawingSurface: HTMLCanvasElement;
+    private readonly drawingContext: CanvasRenderingContext2D;
     public scrollHandler: (dx: number, dy: number) => void;
+    public readonly viewportCoords: IViewportCoords;
 
-    constructor(private readonly canvas: HTMLCanvasElement, private readonly model: Ink) {
-        this.model.on("clear", this.redraw.bind(this));
+    constructor(private readonly viewport: HTMLCanvasElement, private readonly model: Ink) {
+        this.model.on("clear", this.clearCanvas.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
-        this.canvas.style.touchAction = "none";
+        this.viewport.style.touchAction = "none";
         // safari not quite there with pointer events; drops some from apple pencil
         if (!isiOS()) {
-            this.canvas.addEventListener("pointerdown", this.handlePointerDown.bind(this));
-            this.canvas.addEventListener("pointermove", this.handlePointerMove.bind(this));
-            this.canvas.addEventListener("pointerup", this.handlePointerUp.bind(this));
+            this.viewport.addEventListener("pointerdown", this.handlePointerDown.bind(this));
+            this.viewport.addEventListener("pointermove", this.handlePointerMove.bind(this));
+            this.viewport.addEventListener("pointerup", this.handlePointerUp.bind(this));
         } else {
-            this.canvas.addEventListener("touchstart", this.handleTouchStart.bind(this));
-            this.canvas.addEventListener("touchmove", this.handleTouchMove.bind(this));
-            this.canvas.addEventListener("touchend", this.handleTouchEnd.bind(this));
-            this.canvas.addEventListener("touchleave", this.handleTouchEnd.bind(this));
+            this.viewport.addEventListener("touchstart", this.handleTouchStart.bind(this));
+            this.viewport.addEventListener("touchmove", this.handleTouchMove.bind(this));
+            this.viewport.addEventListener("touchend", this.handleTouchEnd.bind(this));
+            this.viewport.addEventListener("touchleave", this.handleTouchEnd.bind(this));
         }
-        const context = this.canvas.getContext("2d");
+        const viewportContext = this.viewport.getContext("2d");
         // eslint-disable-next-line no-null/no-null
-        if (context === null) {
+        if (viewportContext === null) {
             throw new Error("InkCanvas requires a canvas with 2d rendering context");
         }
-        this.context = context;
-
+        this.viewportContext = viewportContext;
+        this.drawingSurface = document.createElement("canvas");
+        this.drawingSurface.width = model.getWidth();
+        this.drawingSurface.height = model.getHeight();
+        this.drawingContext = this.drawingSurface.getContext("2d");
+        this.viewport.appendChild(this.drawingSurface);
+        this.drawingSurface.style.zIndex = "-10";
+        this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
             thickness: defaultThickness,
         };
+    }
 
-        this.sizeCanvasBackingStore();
+    public resize() {
+        const bounds = this.viewport.getBoundingClientRect();
+        // TODO: review device pixel scale for here
+        this.viewport.width = bounds.width;
+        this.viewport.height = bounds.height;
+        this.viewportCoords.pw = bounds.width;
+        this.viewportCoords.ph = bounds.height;
+        this.viewportCoords.scaleX = this.viewportCoords.width / this.viewportCoords.pw;
+        this.viewportCoords.scaleY = this.viewportCoords.height / this.viewportCoords.ph;
+        this.blt();
+    }
+
+    public setViewportCoords(x: number, y: number, w: number, h: number) {
+        this.viewportCoords.x = x;
+        this.viewportCoords.y = y;
+        this.viewportCoords.width = w;
+        this.viewportCoords.height = h;
+        this.resize();
+    }
+
+    public xlate(xoff: number, yoff: number) {
+        if ((xoff !== 0) || (yoff !== 0)) {
+            this.setViewportCoords(this.viewportCoords.x + xoff, this.viewportCoords.y + yoff,
+                this.viewportCoords.width, this.viewportCoords.height);
+        }
+    }
+
+    public zoom(f: number, cx: number, cy: number) {
+        if (f > 0.0) {
+            const nw = Math.min(this.model.getWidth(), this.viewportCoords.width / f);
+            const nh = Math.min(this.model.getHeight(), this.viewportCoords.height / f);
+            if ((nw !== this.viewportCoords.width) || (nh !== this.viewportCoords.height)) {
+                this.viewportCoords.width = nw;
+                this.viewportCoords.height = nh;
+                this.viewportCoords.x = Math.max(0, cx - (nw / 2.0));
+                this.viewportCoords.y = Math.max(0, cy - (nh / 2.0));
+                console.log(`${this.viewportCoords.x} ${this.viewportCoords.y} ${nw} ${nh}`);
+                this.resize();
+            }
+        }
+    }
+
+    public blt() {
+        console.log(`blt! ${this.viewportCoords.pw} ${this.viewportCoords.ph}`);
+        this.viewportContext.drawImage(this.drawingSurface,
+            this.viewportCoords.x, this.viewportCoords.y, this.viewportCoords.width, this.viewportCoords.height,
+            0, 0, this.viewportCoords.pw, this.viewportCoords.ph,
+        );
     }
 
     public getCanvas() {
-        return this.canvas;
+        return this.viewport;
     }
 
     public getScrollX() {
-        return this.scrollX;
+        return this.viewportCoords.x;
     }
 
     public getScrollY() {
-        return this.scrollY;
-    }
-
-    public xlate(offX: number, offY: number) {
-        if ((offX !== 0) || (offY !== 0)) {
-            this.scrollX += offX;
-            this.scrollY += offY;
-            this.redraw();
-        }
-    }
-
-    public toOrigin() {
-        if ((this.scrollX !== 0) || (this.scrollY !== 0)) {
-            this.scrollX = 0;
-            this.scrollY = 0;
-            this.redraw();
-        }
+        return this.viewportCoords.y;
     }
 
     public setPenColor(color: IColor) {
@@ -217,66 +279,24 @@ export class InkCanvas {
 
     public clear() {
         this.model.clear();
-        this.redraw();
-    }
-
-    public sizeCanvasBackingStore() {
-        const canvasBoundingClientRect = this.canvas.getBoundingClientRect();
-        // Scale the canvas size to match the physical pixel to avoid blurriness
-        const scale = window.devicePixelRatio;
-        this.canvas.width = Math.floor(canvasBoundingClientRect.width * scale);
-        this.canvas.height = Math.floor(canvasBoundingClientRect.height * scale);
-        // Scale the context to bring back coordinate system in CSS pixels
-        this.context.setTransform(1, 0, 0, 1, 0, 0);
-        this.context.scale(scale, scale);
-
-        this.redraw();
-    }
-
-    public scratchOut(text: string) {
-        if (this.diagPad === undefined) {
-            this.diagPad = document.createElement("div");
-            this.diagPad.style.position = "absolute";
-            this.diagPad.style.zIndex = "50";
-            this.diagPad.style.left = "10px";
-            this.diagPad.style.top = "200px";
-            this.diagPad.style.width = "300px";
-            this.diagPad.style.height = "200px";
-            this.diagPad.style.color = "black";
-            document.body.appendChild(this.diagPad);
-        }
-        this.diagPad.innerText = text;
-    }
-
-    public getExtent() {
-        const extent: IPoint = { x: 0, y: 0 };
-        const strokes = this.model.getStrokes();
-        for (const stroke of strokes) {
-            for (const point of stroke.points) {
-                if (point.x > extent.x) {
-                    extent.x = point.x;
-                }
-                if (point.y > extent.y) {
-                    extent.y = point.y;
-                }
-            }
-        }
-        return extent;
+        this.clearCanvas();
     }
 
     private toPhysicalCoordinates(p: IPoint) {
-        p.x -= this.scrollX;
-        p.y -= this.scrollY;
+        p.x = (p.x - this.viewportCoords.x) / this.viewportCoords.scaleX;
+        p.y = (p.y - this.viewportCoords.y) / this.viewportCoords.scaleY;
     }
 
-    private toLogicalCoordinates(p: IPoint) {
-        p.x += this.scrollX;
-        p.y += this.scrollY;
+    private toCanvasCoordinates(p: IPoint) {
+        p.x = (p.x * this.viewportCoords.scaleX) + this.viewportCoords.x;
+        p.y = (p.y * this.viewportCoords.scaleY) + this.viewportCoords.y;
     }
 
     private eraseStrokesAt(x: number, y: number) {
         const strokes = [] as IInkStroke[];
-        const searchBox = new Rectangle(x + this.scrollX, y + this.scrollY, eraserWidth, eraserHeight);
+        const cp: IPoint = { x, y };
+        this.toCanvasCoordinates(cp);
+        const searchBox = new Rectangle(cp.x, cp.y, eraserWidth, eraserHeight);
         this.model.strokeIndex.search(searchBox, (p, id) => {
             if (id !== undefined) {
                 const stroke = this.model.getStroke(id);
@@ -291,7 +311,7 @@ export class InkCanvas {
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
         if ((evt.pointerType === "pen") ||
-            ((evt.pointerType === "mouse") && (evt.button === 0))) {
+            ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
             if (this.eraseMode) {
                 this.eraseStrokesAt(evt.clientX, evt.clientY);
             } else {
@@ -301,7 +321,9 @@ export class InkCanvas {
                 this.appendPointerEventToStroke(evt);
             }
             evt.preventDefault();
-        } else if (evt.pointerType === "touch") {
+        }
+        else if ((evt.pointerType === "touch") ||
+            ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
             // this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY} ${evt.pointerId}`);
             this.localActiveTouchMap.set(evt.pointerId, {
                 id: evt.pointerId, touchtime: Date.now(),
@@ -321,7 +343,7 @@ export class InkCanvas {
 
     private handlePointerMove(evt: PointerEvent) {
         if ((evt.pointerType === "pen") ||
-            ((evt.pointerType === "mouse") && (evt.buttons === 1))) {
+            ((evt.pointerType === "mouse") && (evt.buttons === 1) && (!evt.ctrlKey))) {
             if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 const evobj = (evt as any);
                 let evts: PointerEvent[];
@@ -335,7 +357,8 @@ export class InkCanvas {
                     this.appendPointerEventToStroke(e);
                 }
             }
-        } else if (evt.pointerType === "touch") {
+        } else if ((evt.pointerType === "touch") ||
+            ((evt.pointerType === "mouse") && (evt.buttons === 1) && evt.ctrlKey)) {
             const t = this.localActiveTouchMap.get(evt.pointerId);
             if (t !== undefined) {
                 const dx = Math.floor(evt.clientX - t.x);
@@ -347,8 +370,10 @@ export class InkCanvas {
                 if (this.scrollHandler !== undefined) {
                     this.scrollHandler(-dx, -dy);
                 }
-                this.localActiveTouchMap.set(evt.pointerId, { id: evt.pointerId, touchtime: Date.now(),
-                    x: evt.clientX, y: evt.clientY });
+                this.localActiveTouchMap.set(evt.pointerId, {
+                    id: evt.pointerId, touchtime: Date.now(),
+                    x: evt.clientX, y: evt.clientY,
+                });
             } else {
                 // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
             }
@@ -362,12 +387,13 @@ export class InkCanvas {
 
     private handlePointerUp(evt: PointerEvent) {
         if ((evt.pointerType === "pen") ||
-            ((evt.pointerType === "mouse") && (evt.button === 0))) {
+            ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
             if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 this.appendPointerEventToStroke(evt);
                 this.localActiveStrokeMap.delete(evt.pointerId);
             }
-        } else if (evt.pointerType === "touch") {
+        } if ((evt.pointerType === "touch") ||
+            ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
             // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
             // momentum scroll here
             this.localActiveTouchMap.set(evt.pointerId, undefined);
@@ -393,7 +419,7 @@ export class InkCanvas {
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
-        this.toLogicalCoordinates(inkPt);
+        this.toCanvasCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
@@ -412,7 +438,7 @@ export class InkCanvas {
             time: Date.now(),
             pressure,
         };
-        this.toLogicalCoordinates(inkPt);
+        this.toCanvasCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
@@ -438,10 +464,16 @@ export class InkCanvas {
      * Clears the canvas
      */
     private clearCanvas() {
-        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.drawingContext.clearRect(0, 0, this.drawingSurface.width, this.drawingSurface.height);
+        const bounds = this.viewport.getBoundingClientRect();
+        this.viewportContext.clearRect(0, 0, bounds.width, bounds.height);
     }
 
-    private redraw() {
+    /**
+     * Draw all strokes both in viewport and canvas.
+     * TODO: only draw overlapping strokes into viewport
+     */
+    public draw(vp = true) {
         this.clearCanvas();
 
         const strokes = this.model.getStrokes();
@@ -449,7 +481,7 @@ export class InkCanvas {
             let previous = stroke.points[0];
             for (const current of stroke.points) {
                 // For the down, current === previous === stroke.operations[0]
-                this.drawStrokeSegment(stroke.pen, current, previous);
+                this.drawStrokeSegment(stroke.pen, current, previous, vp);
                 previous = current;
             }
         }
@@ -459,15 +491,22 @@ export class InkCanvas {
         pen: IPen,
         current: IInkPoint,
         previous: IInkPoint,
+        drawVp = true,
     ) {
-        this.context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
-        const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
-        const xlatePrev: IInkPoint = { x: previous.x, y: previous.y, time: previous.time, pressure: previous.pressure };
+        // first draw in full canvas
+        drawShapes(this.drawingContext, previous, current, pen);
 
-        this.toPhysicalCoordinates(xlateCur);
-        this.toPhysicalCoordinates(xlatePrev);
-
-        drawShapes(this.context, xlatePrev, xlateCur, pen);
+        // then draw in viewport
+        if (drawVp) {
+            const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
+            const xlatePrev: IInkPoint = {
+                x: previous.x, y: previous.y, time: previous.time,
+                pressure: previous.pressure,
+            };
+            this.toPhysicalCoordinates(xlateCur);
+            this.toPhysicalCoordinates(xlatePrev);
+            drawShapes(this.viewportContext, xlatePrev, xlateCur, pen);
+        }
     }
 
     private handleStylus(operation: IStylusOperation) {

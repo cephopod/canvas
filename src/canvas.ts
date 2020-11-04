@@ -30,10 +30,13 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
-        this.sizeCanvas();
-        this.updateBounds();
+        const bounds = this.inkCanvas.getCanvas().getBoundingClientRect();
+        this.inkCanvas.setViewportCoords(0, 0, Math.min(bounds.width, this.ink.getWidth()),
+            Math.min(this.ink.getHeight(), bounds.height));
+        this.inkCanvas.draw(false);
+        this.resize();
 
-        window.addEventListener("resize", this.sizeCanvas.bind(this));
+        window.addEventListener("resize", this.resize.bind(this));
     }
 
     protected async initializingFirstTime() {
@@ -47,23 +50,28 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.ink.splitListener = (rects) => this.addRectsToStrokeIndex(rects);
     }
 
+    private resize() {
+        this.inkCanvas.resize();
+        this.updateBounds();
+    }
+
     private createCanvasDom() {
         this.inkComponentRoot = document.createElement("div");
         this.inkComponentRoot.classList.add("ink-component-root");
         const inkSurface = document.createElement("div");
         inkSurface.classList.add("ink-surface");
 
-        const canvasElement = document.createElement("canvas");
+        const viewportElement = document.createElement("canvas");
 
-        canvasElement.classList.add("ink-canvas");
+        viewportElement.classList.add("ink-canvas");
 
         this.inkColorPicker = this.createColorPicker();
 
-        this.inkCanvas = new InkCanvas(canvasElement, this.ink);
+        this.inkCanvas = new InkCanvas(viewportElement, this.ink);
         this.inkCanvas.scrollHandler = (dx, dy) => this.pan(dx, dy);
         const inkToolbar = this.createToolbar();
         this.inkComponentRoot.appendChild(inkSurface);
-        inkSurface.appendChild(canvasElement);
+        inkSurface.appendChild(viewportElement);
         inkSurface.appendChild(inkToolbar);
 
         this.inkComponentRoot.addEventListener("click", () =>
@@ -124,6 +132,15 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             div.classList.add("index-item");
             rect.conformElement(div);
             this.indexOverlay.appendChild(div);
+        }
+    }
+
+    public zoom(factor: number) {
+        if (factor !== 1) {
+            const cx = this.inkCanvas.getScrollX() + (this.inkCanvas.viewportCoords.pw / 2);
+            const cy = this.inkCanvas.getScrollY() + (this.inkCanvas.viewportCoords.ph / 2);
+            this.inkCanvas.zoom(factor, cx, cy);
+            this.updateBounds();
         }
     }
 
@@ -206,6 +223,12 @@ export class Canvas extends DataObject implements IFluidHTMLView {
             case "h":
                 this.hideStrokeIndex();
                 break;
+            case "z":
+                this.zoom(1.1);
+                break;
+            case "Z":
+                this.zoom(0.9);
+                break;
             default:
                 break;
         }
@@ -221,9 +244,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     }
 
     private updateBounds() {
-        const boundingRect = this.inkComponentRoot.getBoundingClientRect();
-        const scaleW = boundingRect.width / this.ink.getWidth();
-        const scaleH = boundingRect.height / this.ink.getHeight();
+        const scaleW = this.inkCanvas.viewportCoords.width / this.ink.getWidth();
+        const scaleH = this.inkCanvas.viewportCoords.height / this.ink.getHeight();
         const offX = this.inkCanvas.getScrollX() / this.ink.getWidth();
         const offY = this.inkCanvas.getScrollY() / this.ink.getHeight();
         const miniMapViewOutline = this.miniMap.firstElementChild as HTMLDivElement;
@@ -344,9 +366,5 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private toggleColorPicker() {
         this.inkColorPicker.classList.toggle("show");
         this.showingColorPicker = !this.showingColorPicker;
-    }
-
-    private sizeCanvas() {
-        this.inkCanvas.sizeCanvasBackingStore();
     }
 }
