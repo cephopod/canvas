@@ -225,14 +225,34 @@ export class InkCanvas {
     }
 
     public zoom(f: number, cx: number, cy: number) {
+        const minWidth = this.model.getWidth() / 16;
+        const minHeight = this.model.getHeight() / 16;
         if (f > 0.0) {
-            const nw = Math.min(this.model.getWidth(), this.viewportCoords.width / f);
-            const nh = Math.min(this.model.getHeight(), this.viewportCoords.height / f);
-            if ((nw !== this.viewportCoords.width) || (nh !== this.viewportCoords.height)) {
+            let nw = this.viewportCoords.width / f;
+            let nh = this.viewportCoords.height / f;
+            if ((nw > this.model.getWidth()) || (nh > this.model.getHeight())) {
+                // max zoom
+                this.viewportCoords.x = 0;
+                this.viewportCoords.y = 0;
+                this.viewportCoords.width = this.model.getWidth();
+                this.viewportCoords.height = this.model.getHeight();
+                console.log(`${this.viewportCoords.x} ${this.viewportCoords.y} ${nw} ${nh}`);
+                this.resize();
+            }
+            else if ((nw !== this.viewportCoords.width) || (nh !== this.viewportCoords.height)) {
+                if ((nw < minWidth) || (nh < minHeight)) {
+                    nw = minWidth;
+                    nh = minHeight;
+                }
                 this.viewportCoords.width = nw;
                 this.viewportCoords.height = nh;
-                this.viewportCoords.x = Math.max(0, cx - (nw / 2.0));
-                this.viewportCoords.y = Math.max(0, cy - (nh / 2.0));
+                if (((this.viewportCoords.x + this.viewportCoords.width) > this.model.getWidth()) ||
+                    ((this.viewportCoords.y + this.viewportCoords.height) > this.model.getHeight())) {
+                    this.viewportCoords.x = 0;
+                    this.viewportCoords.y = 0;
+                }
+                // this.viewportCoords.x = Math.max(0, cx - (nw / 2.0));
+                // this.viewportCoords.y = Math.max(0, cy - (nh / 2.0));
                 console.log(`${this.viewportCoords.x} ${this.viewportCoords.y} ${nw} ${nh}`);
                 this.resize();
             }
@@ -348,6 +368,7 @@ export class InkCanvas {
     private handlePointerMove(evt: PointerEvent) {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && (!evt.ctrlKey))) {
+            this.localActiveTouchMap.clear();
             if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 const evobj = (evt as any);
                 let evts: PointerEvent[];
@@ -394,13 +415,17 @@ export class InkCanvas {
                         prevX = t.x;
                         prevY = t.y;
                     }
-                    if (t.id !== evt.pointerId) {
+                    if (t.id === evt.pointerId) {
                         prevdiff = t.prevdiff;
                     }
                 }
                 d = Math.sqrt(sum);
+                const zthresh = 1;
                 if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
-                    this.zoomHandler(d - prevdiff);
+                    const dpix = d - prevdiff;
+                    if (Math.abs(dpix) >= zthresh) {
+                        this.zoomHandler(d - prevdiff);
+                    }
                 }
             }
             this.localActiveTouchMap.set(evt.pointerId, {
@@ -428,7 +453,7 @@ export class InkCanvas {
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
             // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
             // momentum scroll here
-            this.localActiveTouchMap.delete(evt.pointerId);
+            this.localActiveTouchMap.clear();
         }
     }
 

@@ -69,11 +69,8 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.inkCanvas = new InkCanvas(viewportElement, this.ink);
         this.inkCanvas.panHandler = (dx, dy) => this.pan(dx, dy);
         this.inkCanvas.zoomHandler = (d) => {
-            if (d > 0) {
-                this.zoom(1.1);
-            } else if (d < 0) {
-                this.zoom(0.9);
-            }
+            const factor = 1.0 + (d / this.inkCanvas.viewportCoords.width);
+            this.zoom(factor);
         };
         const inkToolbar = this.createToolbar();
         this.inkComponentRoot.appendChild(inkSurface);
