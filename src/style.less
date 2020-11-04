@@ -60,12 +60,18 @@ body {
 }
 
 .mini-map {
-    background-color: #35343b;
     width: 80px;
-    height: 50px;
+    position: absolute;
+    top: 0;
+    right:0;
+    height: 125px;
+    width: 125px;
+    margin-top: 10px;
+    margin-right: 10px;
     padding: 2px;
     margin-left: 0.5rem;
-    border: solid white 1px;
+    box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.2), 0 1px 5px 0 rgba(0, 0, 0, 0.19);
+    border: solid #35343b 1px;
     &:hover {
         opacity: .75;
     }
@@ -73,7 +79,7 @@ body {
 
 .mini-map-view {
     position: relative;
-    border: pink 2px dashed;
+    border: #35343b 2px solid;
 }
 
 .ink-toolbar-button {
