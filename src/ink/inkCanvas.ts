@@ -189,7 +189,7 @@ export class InkCanvas {
         this.drawingSurface.height = model.getHeight();
         this.drawingContext = this.drawingSurface.getContext("2d");
         this.viewport.appendChild(this.drawingSurface);
-        this.drawingSurface.style.zIndex = "Nope0";
+        this.drawingSurface.style.zIndex = "-10";
         this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
@@ -325,7 +325,7 @@ export class InkCanvas {
             if (id !== undefined) {
                 const stroke = this.model.getStroke(id);
                 strokes.push(stroke);
-                // TODO: remove stroke from index here
+                // TODO: remove stroke from index here or store list to remove
                 return true;
             }
             return false;
@@ -389,12 +389,14 @@ export class InkCanvas {
                 const t = this.localActiveTouchMap.get(evt.pointerId);
                 if (t !== undefined) {
                     // single touch is pan
-                    const dx = Math.floor(evt.clientX - t.x);
-                    const dy = Math.floor(evt.clientY - t.y);
+                    let dx = Math.floor(evt.clientX - t.x);
+                    let dy = Math.floor(evt.clientY - t.y);
                     // const dt = Math.max(Date.now() - t.touchtime, 1);
                     // const vx = (1000 * (dx / dt)).toFixed(1);
                     // const vy = (1000 * (dy / dt)).toFixed(1);
                     // this.scratchOut(`touchmove dx = ${dx} dy = ${dy} dt = ${dt} vx=${vx} vy=${vy}`);
+                    dx *= this.viewportCoords.scaleX;
+                    dy *= this.viewportCoords.scaleX;
                     if (this.panHandler !== undefined) {
                         this.panHandler(-dx, -dy);
                     }
@@ -420,12 +422,9 @@ export class InkCanvas {
                     }
                 }
                 d = Math.sqrt(sum);
-                const zthresh = 1;
                 if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
                     const dpix = d - prevdiff;
-                    if (Math.abs(dpix) >= zthresh) {
-                        this.zoomHandler(d - prevdiff);
-                    }
+                    this.zoomHandler(dpix * this.viewportCoords.scaleX);
                 }
             }
             this.localActiveTouchMap.set(evt.pointerId, {
