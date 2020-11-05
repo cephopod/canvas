@@ -262,13 +262,13 @@ export class InkCanvas {
 
     public bltBox(box: Rectangle) {
         const physStart: IPoint = { x: box.x, y: box.y };
-        const physwh: IPoint = { x: box.width, y: box.height };
         this.toPhysicalCoordinates(physStart);
-        this.toPhysicalCoordinates(physwh);
-        this.viewportContext.clearRect(physStart.x, physStart.y, physwh.x, physwh.y);
+        const pw = box.width / this.viewportCoords.scaleX;
+        const ph = box.height / this.viewportCoords.scaleY;
+        this.viewportContext.clearRect(physStart.x, physStart.y, pw, ph);
         this.viewportContext.drawImage(this.drawingSurface,
             box.x, box.y, box.width, box.height,
-            physStart.x, physStart.y, physwh.x, physwh.y);
+            physStart.x, physStart.y, pw, ph);
     }
 
     public blt() {
