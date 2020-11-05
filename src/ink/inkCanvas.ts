@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation } from "./interfaces";
+import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation } from "./interfaces";
 import { Ink, Rectangle } from ".";
 
 const Nope = -1;
@@ -68,7 +68,7 @@ function drawShapes(
     pen: IPen,
 ): void {
     context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
-    console.log(`start ${startPoint.x}, ${startPoint.y} end ${endPoint.x}, ${endPoint.y} r ${pen.color.r}`);
+    // console.log(`start ${startPoint.x}, ${startPoint.y} end ${endPoint.x}, ${endPoint.y} r ${pen.color.r}`);
     const dirVector = new Vector(
         endPoint.x - startPoint.x,
         endPoint.y - startPoint.y);
@@ -166,6 +166,7 @@ export class InkCanvas {
     constructor(private readonly viewport: HTMLCanvasElement, private readonly model: Ink) {
         this.model.on("clear", this.clearCanvas.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
+        this.model.on("eraseStrokes", this.handleEraseStrokes.bind(this));
         this.viewport.style.touchAction = "none";
         // safari not quite there with pointer events; drops some from apple pencil
         if (!isiOS()) {
@@ -259,8 +260,18 @@ export class InkCanvas {
         }
     }
 
+    public bltBox(box: Rectangle) {
+        const physStart: IPoint = { x: box.x, y: box.y };
+        const physwh: IPoint = { x: box.width, y: box.height };
+        this.toPhysicalCoordinates(physStart);
+        this.toPhysicalCoordinates(physwh);
+        this.viewportContext.clearRect(physStart.x, physStart.y, physwh.x, physwh.y);
+        this.viewportContext.drawImage(this.drawingSurface,
+            box.x, box.y, box.width, box.height,
+            physStart.x, physStart.y, physwh.x, physwh.y);
+    }
+
     public blt() {
-        console.log(`blt! ${this.viewportCoords.pw} ${this.viewportCoords.ph}`);
         this.viewportContext.drawImage(this.drawingSurface,
             this.viewportCoords.x, this.viewportCoords.y, this.viewportCoords.width, this.viewportCoords.height,
             0, 0, this.viewportCoords.pw, this.viewportCoords.ph,
@@ -316,20 +327,58 @@ export class InkCanvas {
         p.y = (p.y * this.viewportCoords.scaleY) + this.viewportCoords.y;
     }
 
-    private eraseStrokesAt(x: number, y: number) {
-        const strokes = [] as IInkStroke[];
+    private eraseStrokes(x: number, y: number) {
+        const strokes = new Map<string, IInkStroke>();
         const cp: IPoint = { x, y };
         this.toCanvasCoordinates(cp);
         const searchBox = new Rectangle(cp.x, cp.y, eraserWidth, eraserHeight);
         this.model.strokeIndex.search(searchBox, (p, id) => {
             if (id !== undefined) {
                 const stroke = this.model.getStroke(id);
-                strokes.push(stroke);
-                // TODO: remove stroke from index here or store list to remove
+                strokes.set(id, stroke);
                 return true;
             }
             return false;
         });
+        const ids = [] as string[];
+        for (const id of strokes.keys()) {
+            ids.push(id);
+        }
+        if (ids.length > 0) {
+            this.model.eraseStrokes(ids);
+        }
+    }
+
+    private executeEraseStrokes(ids: string[]) {
+        if (ids.length > 0) {
+            let lx = Number.MAX_SAFE_INTEGER;
+            let ly = Number.MAX_SAFE_INTEGER;
+            let hx = Number.MIN_SAFE_INTEGER;
+            let hy = Number.MIN_SAFE_INTEGER;
+            for (const id of ids) {
+                const stroke = this.model.getStroke(id);
+                if (stroke.hiBound.x > hx) {
+                    hx = stroke.hiBound.x;
+                }
+                if (stroke.hiBound.y > hy) {
+                    hy = stroke.hiBound.y;
+                }
+                if (stroke.loBound.x < lx) {
+                    lx = stroke.loBound.x;
+                }
+                if (stroke.loBound.y < ly) {
+                    ly = stroke.loBound.y;
+                }
+            }
+            lx = Math.max(0, lx - 16);
+            ly = Math.max(0, ly - 16);
+            hx = Math.min(this.model.getWidth(), hx + 16);
+            hy = Math.min(this.model.getHeight(), hy + 16);
+            const box = new Rectangle(lx, ly, hx - lx, hy - ly);
+            this.clearBox(box);
+            this.drawInBox(box);
+            this.bltBox(box);
+        }
     }
 
     private handlePointerDown(evt: PointerEvent) {
@@ -337,7 +386,7 @@ export class InkCanvas {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
             if (this.eraseMode) {
-                this.eraseStrokesAt(evt.clientX, evt.clientY);
+                this.eraseStrokes(evt.clientX, evt.clientY);
             } else {
                 const strokeId = this.model.createStroke(this.currentPen).id;
                 this.localActiveStrokeMap.set(evt.pointerId, strokeId);
@@ -369,7 +418,9 @@ export class InkCanvas {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && (!evt.ctrlKey))) {
             this.localActiveTouchMap.clear();
-            if (this.localActiveStrokeMap.has(evt.pointerId)) {
+            if (this.eraseMode) {
+                this.eraseStrokes(evt.clientX, evt.clientY);
+            } else if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 const evobj = (evt as any);
                 let evts: PointerEvent[];
                 if (evobj.getCoalescedEvents !== undefined) {
@@ -444,7 +495,7 @@ export class InkCanvas {
     private handlePointerUp(evt: PointerEvent) {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
-            if (this.localActiveStrokeMap.has(evt.pointerId)) {
+            if ((!this.eraseMode) && (this.localActiveStrokeMap.has(evt.pointerId))) {
                 this.appendPointerEventToStroke(evt);
                 this.localActiveStrokeMap.delete(evt.pointerId);
             }
@@ -525,6 +576,35 @@ export class InkCanvas {
         this.viewportContext.clearRect(0, 0, bounds.width, bounds.height);
     }
 
+    private clearBox(box: Rectangle) {
+        this.drawingContext.clearRect(box.x, box.y, box.width, box.height);
+    }
+
+    private drawStroke(stroke: IInkStroke) {
+        let previous = stroke.points[0];
+        for (const current of stroke.points) {
+            // For the down, current === previous === stroke.operations[0]
+            this.drawStrokeSegment(stroke.pen, current, previous, false);
+            previous = current;
+        }
+    }
+
+    private drawInBox(box: Rectangle) {
+        const strokes = new Map<string, IInkStroke>();
+        this.model.strokeIndex.search(box, (p, id) => {
+            if (id !== undefined) {
+                const stroke = this.model.getStroke(id);
+                strokes.set(id, stroke);
+                return true;
+            }
+            return false;
+        });
+        for (const stroke of strokes.values()) {
+            if (!stroke.inactive) {
+                this.drawStroke(stroke);
+            }
+        }
+    }
     /**
      * Draw all strokes both in viewport and canvas.
      * TODO: only draw overlapping strokes into viewport
@@ -534,11 +614,13 @@ export class InkCanvas {
 
         const strokes = this.model.getStrokes();
         for (const stroke of strokes) {
-            let previous = stroke.points[0];
-            for (const current of stroke.points) {
-                // For the down, current === previous === stroke.operations[0]
-                this.drawStrokeSegment(stroke.pen, current, previous, vp);
-                previous = current;
+            if (!stroke.inactive) {
+                let previous = stroke.points[0];
+                for (const current of stroke.points) {
+                    // For the down, current === previous === stroke.operations[0]
+                    this.drawStrokeSegment(stroke.pen, current, previous, vp);
+                    previous = current;
+                }
             }
         }
     }
@@ -572,5 +654,9 @@ export class InkCanvas {
         // If this is the only point in the stroke, we'll use it for both the start and end of the segment
         const prevPoint = stroke.points[stroke.points.length - (stroke.points.length >= 2 ? 2 : 1)];
         this.drawStrokeSegment(stroke.pen, prevPoint, operation.point);
+    }
+
+    private handleEraseStrokes(operation: IEraseStrokesOperation) {
+        this.executeEraseStrokes(operation.ids);
     }
 }

@@ -22,6 +22,7 @@ import { InkFactory } from "./inkFactory";
 import {
     IClearOperation,
     ICreateStrokeOperation,
+    IEraseStrokesOperation,
     IInk,
     IInkOperation,
     IInkPoint,
@@ -98,6 +99,15 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         }
     }
 
+    private loadIndexFromStrokes() {
+        const strokes = this.inkData.getStrokes();
+        for (const stroke of strokes) {
+            for (const p of stroke.points) {
+                this.strokeIndex.insert(p, stroke.id);
+            }
+        }
+    }
+
     private initStrokeIndex() {
         this.strokeIndex = new QuadTree<IInkPoint>(new Rectangle(0, 0, this.inkData.width, this.inkData.height));
         this.strokeIdToBoxes = new Map<string, QuadTree<IInkPoint>[]>();
@@ -119,6 +129,18 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
     }
 
     /**
+     * {@inheritDoc IInk.eraseStroke}
+     */
+    public eraseStrokes(ids: string[]) {
+        const eraseStrokesOperation: IEraseStrokesOperation = {
+            ids,
+            type: "eraseStrokes",
+        };
+        this.submitLocalMessage(eraseStrokesOperation, undefined);
+        this.executeEraseStrokesOperation(eraseStrokesOperation);
+    }
+
+    /**
      * {@inheritDoc IInk.appendPointToStroke}
      */
     public appendPointToStroke(point: IInkPoint, id: string): IInkStroke {
@@ -131,6 +153,9 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         return this.executeStylusOperation(stylusOperation);
     }
 
+    /**
+     * {@inheritDoc IInk.eraseStrokes }
+     */
     public getHeight() {
         return this.inkData.height;
     }
@@ -200,6 +225,7 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
             this.inkData = new InkData(
                 JSON.parse(fromBase64ToUtf8(header)) as ISerializableInk,
             );
+            this.loadIndexFromStrokes();
         }
     }
 
@@ -215,6 +241,8 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
                 this.executeCreateStrokeOperation(operation);
             } else if (operation.type === "stylus") {
                 this.executeStylusOperation(operation);
+            } else if (operation.type === "eraseStrokes") {
+                this.executeEraseStrokesOperation(operation);
             }
         }
     }
@@ -252,8 +280,8 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         const stroke: IInkStroke = {
             id: operation.id,
             points: [],
-            loBound: { x: 0, y: 0 },
-            hiBound: { x: 0, y: 0 },
+            loBound: { x: Number.MAX_SAFE_INTEGER, y: Number.MAX_SAFE_INTEGER },
+            hiBound: { x: Number.MIN_SAFE_INTEGER, y: Number.MIN_SAFE_INTEGER },
             pen: operation.pen,
         };
         this.inkData.addStroke(stroke);
@@ -261,6 +289,34 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         return stroke;
     }
 
+    /**
+     * Update the model by removing one or more strokes
+     * @param operation - The operation object
+     */
+    private executeEraseStrokesOperation(operation: IEraseStrokesOperation) {
+        for (const id of operation.ids) {
+            const stroke = this.getStroke(id);
+            stroke.inactive = true;
+        }
+        this.emit("eraseStrokes", operation);
+    }
+
+    private addPointToStroke(p: IInkPoint, id: string, stroke: IInkStroke) {
+        stroke.points.push(p);
+        if (p.x > stroke.hiBound.x) {
+            stroke.hiBound.x = p.x;
+        }
+        if (p.y > stroke.hiBound.y) {
+            stroke.hiBound.y = p.y;
+        }
+        if (p.x < stroke.loBound.x) {
+            stroke.loBound.x = p.x;
+        }
+        if (p.y < stroke.loBound.y) {
+            stroke.loBound.y = p.y;
+        }
+        this.strokeIndex.insert(p, id);
+    }
     /**
      * Update the model for a stylus operation.  These represent updates to an existing stroke.
      * @param operation - The operation object
@@ -270,8 +326,7 @@ export class Ink extends SharedObject<IInkEvents> implements IInk {
         // Need to make sure the stroke is still there (hasn't been cleared) before appending the down/move/up.
         const stroke = this.getStroke(operation.id);
         if (stroke !== undefined) {
-            stroke.points.push(operation.point);
-            this.strokeIndex.insert(operation.point, operation.id);
+            this.addPointToStroke(operation.point, operation.id, stroke);
             this.emit("stylus", operation);
         }
         return stroke;

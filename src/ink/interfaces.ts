@@ -77,6 +77,10 @@ export interface IInk extends ISharedObject<IInkEvents> {
     createStroke(pen: IPen): IInkStroke;
 
     /**
+     * Erase the referenced stroke
+     */
+    eraseStrokes(ids: string[]): void;
+    /**
      * Append the given point to the indicated stroke.
      * @param point - The point to append
      * @param id - The ID for the stroke to append to
@@ -169,6 +173,20 @@ export interface ICreateStrokeOperation {
 }
 
 /**
+ * Erase stroke operations notify clients to remove one or more strokes.
+ */
+export interface IEraseStrokesOperation {
+    /**
+     * String identifier for the operation type.
+     */
+    type: "eraseStrokes",
+    /**
+     * Unique ID that will be used to reference this stroke.
+     */
+    ids: string[];
+}
+
+/**
  * Base interface for stylus operations.
  */
 export interface IStylusOperation {
@@ -194,6 +212,7 @@ export interface IStylusOperation {
 export type IInkOperation =
     IClearOperation |
     ICreateStrokeOperation |
+    IEraseStrokesOperation |
     IStylusOperation;
 
 /**
@@ -222,4 +241,8 @@ export interface IInkStroke {
      * Description of the pen used to create the stroke.
      */
     pen: IPen;
+    /**
+     * If true, do not draw the stroke.
+     */
+    inactive?: boolean;
 }
