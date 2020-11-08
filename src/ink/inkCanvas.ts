@@ -641,9 +641,10 @@ export class InkCanvas {
                 x: previous.x, y: previous.y, time: previous.time,
                 pressure: previous.pressure,
             };
+            const xlatePen: IPen = { color: pen.color, thickness: pen.thickness / this.viewportCoords.scaleX };
             this.toPhysicalCoordinates(xlateCur);
             this.toPhysicalCoordinates(xlatePrev);
-            drawShapes(this.viewportContext, xlatePrev, xlateCur, pen);
+            drawShapes(this.viewportContext, xlatePrev, xlateCur, xlatePen);
         }
     }
 
