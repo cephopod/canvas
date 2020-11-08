@@ -24,8 +24,8 @@ export interface ISerializableInk {
 }
 
 // TODO: make this variable and transmitted in serialized data
-export const InkCanvasWidth = 12000;
-export const InkCanvasHeight = 8000;
+export const InkCanvasWidth = 3000;
+export const InkCanvasHeight = 2000;
 
 /**
  * Maintains a live record of the data that can be used for snapshotting.

@@ -8,7 +8,7 @@ import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
-import { IInk, Ink, InkCanvas, Rectangle } from "./ink";
+import { IInk, Ink, InkCanvas, Rectangle, SVGScene } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor } from "./util";
 
@@ -26,13 +26,14 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private inkComponentRoot: HTMLDivElement;
     private indexOverlay: HTMLDivElement;
     private currentColor: string = "rgba(0,0,0,1)";
+    private scene: SVGScene;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
         const bounds = this.inkCanvas.getCanvas().getBoundingClientRect();
         this.inkCanvas.setViewportCoords(0, 0, Math.min(bounds.width, this.ink.getWidth()),
             Math.min(this.ink.getHeight(), bounds.height));
-        this.inkCanvas.draw(false);
+        this.inkCanvas.renderStrokes();
         this.resize();
 
         window.addEventListener("resize", this.resize.bind(this));
@@ -60,13 +61,14 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const inkSurface = document.createElement("div");
         inkSurface.classList.add("ink-surface");
 
-        const viewportElement = document.createElement("canvas");
+        this.scene = new SVGScene(this.ink.getWidth(), this.ink.getHeight());
+        const viewportElement = this.scene.root;
 
         viewportElement.classList.add("ink-canvas");
 
         this.inkColorPicker = this.createColorPicker();
 
-        this.inkCanvas = new InkCanvas(viewportElement, this.ink);
+        this.inkCanvas = new InkCanvas(this.scene, this.ink);
         this.inkCanvas.panHandler = (dx, dy) => this.pan(dx, dy);
         this.inkCanvas.zoomHandler = (d) => {
             const factor = 1.0 + (d / this.inkCanvas.viewportCoords.width);
@@ -300,11 +302,6 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         const inkToolbar = document.createElement("div");
         inkToolbar.classList.add("ink-toolbar");
 
-        const replayButton = document.createElement("button");
-        replayButton.classList.add("ink-toolbar-button");
-        replayButton.addEventListener("click", this.inkCanvas.replay.bind(this.inkCanvas));
-        replayButton.appendChild(svgLibrary.iconPlayCircle());
-
         const eraserButton = document.createElement("button");
         eraserButton.classList.add("ink-toolbar-button");
         eraserButton.addEventListener("click", () => {
@@ -329,7 +326,6 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
         inkToolbar.appendChild(colorButtonContainer);
         inkToolbar.appendChild(eraserButton);
-        inkToolbar.appendChild(replayButton);
         if (addClear) {
             inkToolbar.appendChild(this.makeClearButton());
         }

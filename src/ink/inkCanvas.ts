@@ -3,7 +3,12 @@
  * Licensed under the MIT License.
  */
 import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation } from "./interfaces";
+import { SVGScene } from "./svg";
 import { Ink, Rectangle } from ".";
+
+interface IInkStrokeVis extends IInkStroke {
+    elt?: SVGGElement;
+}
 
 const Nope = -1;
 
@@ -33,41 +38,8 @@ class Vector {
     }
 }
 
-function drawPolygon(context: CanvasRenderingContext2D, points: IPoint[]) {
-    if (points.length === 0) {
-        return;
-    }
-
-    context.beginPath();
-    // Move to the first point
-    context.moveTo(points[0].x, points[0].y);
-
-    // Draw the rest of the segments
-    for (let i = 1; i < points.length; i++) {
-        context.lineTo(points[i].x, points[i].y);
-    }
-
-    // And then close the shape
-    context.lineTo(points[0].x, points[0].y);
-    context.closePath();
-    context.fill();
-}
-
-function drawCircle(context: CanvasRenderingContext2D, center: IPoint, radius: number) {
-    context.beginPath();
-    context.moveTo(center.x, center.y);
-    context.arc(center.x, center.y, radius, 0, Math.PI * 2);
-    context.closePath();
-    context.fill();
-}
-
-function drawShapes(
-    context: CanvasRenderingContext2D,
-    startPoint: IInkPoint,
-    endPoint: IInkPoint,
-    pen: IPen,
-): void {
-    context.fillStyle = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
+function addShapes(elt: SVGGElement, startPoint: IInkPoint, endPoint: IInkPoint, pen: IPen) {
+    const fillColor = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
     // console.log(`start ${startPoint.x}, ${startPoint.y} end ${endPoint.x}, ${endPoint.y} r ${pen.color.r}`);
     const dirVector = new Vector(
         endPoint.x - startPoint.x,
@@ -97,13 +69,14 @@ function drawShapes(
             x: endPoint.x + widthAtEnd * normalizedLateralVector.x,
             y: endPoint.y + widthAtEnd * normalizedLateralVector.y,
         };
-
-        drawPolygon(context, [trapezoidP0, trapezoidP1, trapezoidP2, trapezoidP3]);
+        const pgon = SVGScene.makePolygon(fillColor, [trapezoidP0, trapezoidP1, trapezoidP2, trapezoidP3]);
+        elt.appendChild(pgon);
     }
 
     // End circle
     // TODO should only draw if not eclipsed by the previous circle, be careful about single-point
-    drawCircle(context, { x: endPoint.x, y: endPoint.y }, widthAtEnd);
+    const circle = SVGScene.makeCirle(fillColor, endPoint.x, endPoint.y, widthAtEnd);
+    elt.appendChild(circle);
 }
 
 function isiOS() {
@@ -152,45 +125,32 @@ const eraserHeight = 20;
 const defaultThickness = 4;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
-    private readonly viewportContext: CanvasRenderingContext2D;
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
     private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
     private readonly currentPen: IPen;
     private eraseMode = false;
-    private readonly drawingSurface: HTMLCanvasElement;
-    private readonly drawingContext: CanvasRenderingContext2D;
     public panHandler: (dx: number, dy: number) => void;
     public zoomHandler: (d: number) => void;
     public readonly viewportCoords: IViewportCoords;
+    public sceneRoot: SVGSVGElement;
 
-    constructor(private readonly viewport: HTMLCanvasElement, private readonly model: Ink) {
+    constructor(private readonly scene: SVGScene, private readonly model: Ink) {
         this.model.on("clear", this.clearCanvas.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
         this.model.on("eraseStrokes", this.handleEraseStrokes.bind(this));
-        this.viewport.style.touchAction = "none";
+        this.sceneRoot = this.scene.root;
+        this.sceneRoot.style.touchAction = "none";
         // safari not quite there with pointer events; drops some from apple pencil
         if (!isiOS()) {
-            this.viewport.addEventListener("pointerdown", this.handlePointerDown.bind(this));
-            this.viewport.addEventListener("pointermove", this.handlePointerMove.bind(this));
-            this.viewport.addEventListener("pointerup", this.handlePointerUp.bind(this));
+            this.sceneRoot.addEventListener("pointerdown", this.handlePointerDown.bind(this));
+            this.sceneRoot.addEventListener("pointermove", this.handlePointerMove.bind(this));
+            this.sceneRoot.addEventListener("pointerup", this.handlePointerUp.bind(this));
         } else {
-            this.viewport.addEventListener("touchstart", this.handleTouchStart.bind(this));
-            this.viewport.addEventListener("touchmove", this.handleTouchMove.bind(this));
-            this.viewport.addEventListener("touchend", this.handleTouchEnd.bind(this));
-            this.viewport.addEventListener("touchleave", this.handleTouchEnd.bind(this));
+            this.sceneRoot.addEventListener("touchstart", this.handleTouchStart.bind(this));
+            this.sceneRoot.addEventListener("touchmove", this.handleTouchMove.bind(this));
+            this.sceneRoot.addEventListener("touchend", this.handleTouchEnd.bind(this));
+            this.sceneRoot.addEventListener("touchleave", this.handleTouchEnd.bind(this));
         }
-        const viewportContext = this.viewport.getContext("2d");
-        // eslint-disable-next-line no-null/no-null
-        if (viewportContext === null) {
-            throw new Error("InkCanvas requires a canvas with 2d rendering context");
-        }
-        this.viewportContext = viewportContext;
-        this.drawingSurface = document.createElement("canvas");
-        this.drawingSurface.width = model.getWidth();
-        this.drawingSurface.height = model.getHeight();
-        this.drawingContext = this.drawingSurface.getContext("2d");
-        this.viewport.appendChild(this.drawingSurface);
-        this.drawingSurface.style.zIndex = "-10";
         this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
@@ -199,15 +159,13 @@ export class InkCanvas {
     }
 
     public resize() {
-        const bounds = this.viewport.getBoundingClientRect();
+        const bounds = this.sceneRoot.getBoundingClientRect();
         // TODO: review device pixel scale for here
-        this.viewport.width = bounds.width;
-        this.viewport.height = bounds.height;
         this.viewportCoords.pw = bounds.width;
         this.viewportCoords.ph = bounds.height;
         this.viewportCoords.scaleX = this.viewportCoords.width / this.viewportCoords.pw;
         this.viewportCoords.scaleY = this.viewportCoords.height / this.viewportCoords.ph;
-        this.blt();
+        this.updateViewbox();
     }
 
     public setViewportCoords(x: number, y: number, w: number, h: number) {
@@ -260,26 +218,13 @@ export class InkCanvas {
         }
     }
 
-    public bltBox(box: Rectangle) {
-        const physStart: IPoint = { x: box.x, y: box.y };
-        this.toPhysicalCoordinates(physStart);
-        const pw = box.width / this.viewportCoords.scaleX;
-        const ph = box.height / this.viewportCoords.scaleY;
-        this.viewportContext.clearRect(physStart.x, physStart.y, pw, ph);
-        this.viewportContext.drawImage(this.drawingSurface,
-            box.x, box.y, box.width, box.height,
-            physStart.x, physStart.y, pw, ph);
-    }
-
-    public blt() {
-        this.viewportContext.drawImage(this.drawingSurface,
-            this.viewportCoords.x, this.viewportCoords.y, this.viewportCoords.width, this.viewportCoords.height,
-            0, 0, this.viewportCoords.pw, this.viewportCoords.ph,
-        );
+    public updateViewbox() {
+        this.scene.setViewbox(this.viewportCoords.x, this.viewportCoords.y,
+            this.viewportCoords.width, this.viewportCoords.height);
     }
 
     public getCanvas() {
-        return this.viewport;
+        return this.sceneRoot;
     }
 
     public getScrollX() {
@@ -300,26 +245,9 @@ export class InkCanvas {
         this.eraseMode = true;
     }
 
-    public replay() {
-        this.clearCanvas();
-
-        const strokes = this.model.getStrokes();
-
-        // Time of the first operation in stroke 0 is our starting time
-        const startTime = strokes[0].points[0].time;
-        for (const stroke of strokes) {
-            this.animateStroke(stroke, 0, startTime);
-        }
-    }
-
     public clear() {
         this.model.clear();
         this.clearCanvas();
-    }
-
-    private toPhysicalCoordinates(p: IPoint) {
-        p.x = (p.x - this.viewportCoords.x) / this.viewportCoords.scaleX;
-        p.y = (p.y - this.viewportCoords.y) / this.viewportCoords.scaleY;
     }
 
     private toCanvasCoordinates(p: IPoint) {
@@ -351,33 +279,13 @@ export class InkCanvas {
 
     private executeEraseStrokes(ids: string[]) {
         if (ids.length > 0) {
-            let lx = Number.MAX_SAFE_INTEGER;
-            let ly = Number.MAX_SAFE_INTEGER;
-            let hx = Number.MIN_SAFE_INTEGER;
-            let hy = Number.MIN_SAFE_INTEGER;
             for (const id of ids) {
-                const stroke = this.model.getStroke(id);
-                if (stroke.hiBound.x > hx) {
-                    hx = stroke.hiBound.x;
-                }
-                if (stroke.hiBound.y > hy) {
-                    hy = stroke.hiBound.y;
-                }
-                if (stroke.loBound.x < lx) {
-                    lx = stroke.loBound.x;
-                }
-                if (stroke.loBound.y < ly) {
-                    ly = stroke.loBound.y;
+                const vstroke = this.model.getStroke(id) as IInkStrokeVis;
+                if (vstroke.elt !== undefined) {
+                    // for now just hide it
+                    vstroke.elt.style.display = "none";
                 }
             }
-            lx = Math.max(0, lx - 16);
-            ly = Math.max(0, ly - 16);
-            hx = Math.min(this.model.getWidth(), hx + 16);
-            hy = Math.min(this.model.getHeight(), hy + 16);
-            const box = new Rectangle(lx, ly, hx - lx, hy - ly);
-            this.clearBox(box);
-            this.drawInBox(box);
-            this.bltBox(box);
         }
     }
 
@@ -549,112 +457,55 @@ export class InkCanvas {
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
-    private animateStroke(stroke: IInkStroke, operationIndex: number, startTime: number) {
-        if (operationIndex >= stroke.points.length) {
-            return;
-        }
-
-        // Draw the requested stroke
-        const current = stroke.points[operationIndex];
-        const previous = stroke.points[Math.max(0, operationIndex - 1)];
-        const time = operationIndex === 0
-            ? current.time - startTime
-            : current.time - previous.time;
-
-        setTimeout(() => {
-            this.drawStrokeSegment(stroke.pen, current, previous);
-            this.animateStroke(stroke, operationIndex + 1, startTime);
-        }, time);
-    }
-
     /**
      * Clears the canvas
      */
     private clearCanvas() {
-        this.drawingContext.clearRect(0, 0, this.drawingSurface.width, this.drawingSurface.height);
-        const bounds = this.viewport.getBoundingClientRect();
-        this.viewportContext.clearRect(0, 0, bounds.width, bounds.height);
+        this.scene.clear();
     }
 
-    private clearBox(box: Rectangle) {
-        this.drawingContext.clearRect(box.x, box.y, box.width, box.height);
-    }
-
-    private drawStroke(stroke: IInkStroke) {
-        let previous = stroke.points[0];
-        for (const current of stroke.points) {
-            // For the down, current === previous === stroke.operations[0]
-            this.drawStrokeSegment(stroke.pen, current, previous, false);
-            previous = current;
-        }
-    }
-
-    private drawInBox(box: Rectangle) {
-        const strokes = new Map<string, IInkStroke>();
-        this.model.strokeIndex.search(box, (p, id) => {
-            if (id !== undefined) {
-                const stroke = this.model.getStroke(id);
-                strokes.set(id, stroke);
-                return true;
-            }
-            return false;
-        });
-        for (const stroke of strokes.values()) {
-            if (!stroke.inactive) {
-                this.drawStroke(stroke);
-            }
-        }
-    }
     /**
-     * Draw all strokes both in viewport and canvas.
-     * TODO: only draw overlapping strokes into viewport
+     * Draw all strokes (for initial render)
      */
-    public draw(vp = true) {
-        this.clearCanvas();
-
+    public renderStrokes() {
         const strokes = this.model.getStrokes();
         for (const stroke of strokes) {
+            const visStroke = stroke as IInkStrokeVis;
+            if (visStroke.elt === undefined) {
+                visStroke.elt = this.scene.makeGroup();
+            }
             if (!stroke.inactive) {
                 let previous = stroke.points[0];
                 for (const current of stroke.points) {
                     // For the down, current === previous === stroke.operations[0]
-                    this.drawStrokeSegment(stroke.pen, current, previous, vp);
+                    this.addStrokeSegment(visStroke.elt, stroke.pen, current, previous);
                     previous = current;
                 }
             }
         }
     }
 
-    private drawStrokeSegment(
+    private addStrokeSegment(
+        strokeElement: SVGGElement,
         pen: IPen,
         current: IInkPoint,
         previous: IInkPoint,
         drawVp = true,
     ) {
         // first draw in full canvas
-        drawShapes(this.drawingContext, previous, current, pen);
-
-        // then draw in viewport
-        if (drawVp) {
-            const xlateCur: IInkPoint = { x: current.x, y: current.y, time: current.time, pressure: current.pressure };
-            const xlatePrev: IInkPoint = {
-                x: previous.x, y: previous.y, time: previous.time,
-                pressure: previous.pressure,
-            };
-            const xlatePen: IPen = { color: pen.color, thickness: pen.thickness / this.viewportCoords.scaleX };
-            this.toPhysicalCoordinates(xlateCur);
-            this.toPhysicalCoordinates(xlatePrev);
-            drawShapes(this.viewportContext, xlatePrev, xlateCur, xlatePen);
-        }
+        addShapes(strokeElement, previous, current, pen);
     }
 
     private handleStylus(operation: IStylusOperation) {
         // Render the dirty stroke
         const dirtyStrokeId = operation.id;
-        const stroke = this.model.getStroke(dirtyStrokeId);
+        const stroke = this.model.getStroke(dirtyStrokeId) as IInkStrokeVis;
         // If this is the only point in the stroke, we'll use it for both the start and end of the segment
         const prevPoint = stroke.points[stroke.points.length - (stroke.points.length >= 2 ? 2 : 1)];
-        this.drawStrokeSegment(stroke.pen, prevPoint, operation.point);
+        if (stroke.elt === undefined) {
+            stroke.elt = this.scene.makeGroup();
+        }
+        this.addStrokeSegment(stroke.elt, stroke.pen, prevPoint, operation.point);
     }
 
     private handleEraseStrokes(operation: IEraseStrokesOperation) {
