@@ -357,7 +357,10 @@ export class InkCanvas {
                     dx *= this.viewportCoords.scaleX;
                     dy *= this.viewportCoords.scaleX;
                     if (this.panHandler !== undefined) {
+                        const startTime = Date.now();
                         this.panHandler(-dx, -dy);
+                        const elapsed = Date.now() - startTime;
+                        console.log(`pan ${dx},${dy}: ${elapsed}ms`);
                     }
                 }
             }
@@ -383,7 +386,10 @@ export class InkCanvas {
                 d = Math.sqrt(sum);
                 if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
                     const dpix = d - prevdiff;
+                    const startTime = Date.now();
                     this.zoomHandler(dpix * this.viewportCoords.scaleX);
+                    const elapsed = Date.now() - startTime;
+                    console.log(`zoom ${dpix}: ${elapsed}ms`);
                 }
             }
             this.localActiveTouchMap.set(evt.pointerId, {
