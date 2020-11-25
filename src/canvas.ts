@@ -8,7 +8,7 @@ import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
-import { IInk, Ink, InkCanvas, Rectangle, SVGScene } from "./ink";
+import { IInk, Ink, InkCanvas, Rectangle, SVGScene, ViewState } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor } from "./util";
 
@@ -27,10 +27,12 @@ export class Canvas extends DataObject implements IFluidHTMLView {
     private indexOverlay: HTMLDivElement;
     private currentColor: string = "rgba(0,0,0,1)";
     private scene: SVGScene;
+    public maxScene: SVGScene;
+    public maxViewportElement: HTMLDivElement;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
-        const bounds = this.inkCanvas.getCanvas().getBoundingClientRect();
+        const bounds = this.inkCanvasBounds();
         this.inkCanvas.setViewportCoords(0, 0, Math.min(bounds.width, this.ink.getWidth()),
             Math.min(this.ink.getHeight(), bounds.height));
         this.inkCanvas.renderStrokes();
@@ -67,15 +69,23 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         viewportElement.classList.add("ink-canvas");
 
         this.inkColorPicker = this.createColorPicker();
-
+        this.maxScene = SVGScene.getMax(this.scene);
+        this.maxViewportElement = document.createElement("div");
+        this.maxViewportElement.classList.add("ink-birdseye");
+        this.maxViewportElement.appendChild(this.maxScene.root);
+        this.maxOut();
         this.inkCanvas = new InkCanvas(this.scene, this.ink);
-        this.inkCanvas.panHandler = (dx, dy) => this.pan(dx, dy);
-        this.inkCanvas.zoomHandler = (d) => {
+        this.inkCanvas.addHandlers(this.maxViewportElement);
+
+        this.inkCanvas.panHandler = (dx, dy, vs) => this.pan(dx, dy, vs);
+        this.inkCanvas.zoomHandler = (d, vs) => {
             const factor = 1.0 + (d / this.inkCanvas.viewportCoords.width);
-            this.zoom(factor);
+            this.zoom(factor, vs);
         };
         const inkToolbar = this.createToolbar();
         this.inkComponentRoot.appendChild(inkSurface);
+        this.inkComponentRoot.appendChild(this.maxViewportElement);
+        this.inkCanvas.bounds = () => this.inkCanvasBounds();
         inkSurface.appendChild(viewportElement);
         inkSurface.appendChild(inkToolbar);
         this.createMinimap();
@@ -95,6 +105,29 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         return this.inkComponentRoot;
     }
 
+    private maxOut() {
+        this.maxViewportElement.style.display = "none";
+        this.scene.root.style.display = "initial";
+    }
+
+    private maxIn() {
+        this.maxViewportElement.style.display = "initial";
+        this.scene.root.style.display = "none";
+    }
+
+    private maxToViewport() {
+        this.maxViewportElement.style.transformOrigin = "0 0";
+        const scx = this.ink.getWidth() / this.inkCanvas.viewportCoords.width;
+        const scy = this.ink.getHeight() / this.inkCanvas.viewportCoords.height;
+        const tx = -this.inkCanvas.viewportCoords.x;
+        const ty = -this.inkCanvas.viewportCoords.y;
+        this.maxViewportElement.style.transform = `matrix(${scx},0,0,${scy},${tx},${ty})`;
+    }
+
+    private maxToMax() {
+        this.maxViewportElement.style.transform = "none";
+    }
+
     private hideStrokeIndex() {
         if (this.indexOverlay !== undefined) {
             this.inkComponentRoot.removeChild(this.indexOverlay);
@@ -109,7 +142,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         this.indexOverlay.classList.add("index-overlay");
 
         const rects = [] as Rectangle[];
-        const bounds = this.inkCanvas.getCanvas().getBoundingClientRect();
+        const bounds = this.inkCanvasBounds();
         const scrollX = this.inkCanvas.getScrollX();
         const scrollY = this.inkCanvas.getScrollY();
         const viewport = new Rectangle(scrollX, scrollY, bounds.width, bounds.height);
@@ -142,35 +175,54 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         }
     }
 
-    public zoom(factor: number) {
-        if (factor !== 1) {
-            const cx = this.inkCanvas.getScrollX() + (this.inkCanvas.viewportCoords.pw / 2);
-            const cy = this.inkCanvas.getScrollY() + (this.inkCanvas.viewportCoords.ph / 2);
-            this.inkCanvas.zoom(factor, cx, cy);
-            this.updateBounds();
+    public zoom(factor: number, vs: ViewState) {
+        if (vs === ViewState.Ongoing) {
+            if (factor !== 1) {
+                const cx = this.inkCanvas.getScrollX() + (this.inkCanvas.viewportCoords.pw / 2);
+                const cy = this.inkCanvas.getScrollY() + (this.inkCanvas.viewportCoords.ph / 2);
+                this.inkCanvas.zoom(factor, cx, cy);
+                this.updateBounds();
+                this.maxToViewport();
+            }
+        }
+        else if (vs === ViewState.Start) {
+            this.maxIn();
+            this.maxToViewport();
+        } else {
+            this.maxOut();
+            this.maxToMax();
         }
     }
 
-    public pan(dx: number, dy: number) {
-        if ((dx !== 0) || (dy !== 0)) {
-            const scrollX = this.inkCanvas.getScrollX();
-            const scrollY = this.inkCanvas.getScrollY();
-            const boundWidth = this.inkCanvas.getCanvas().getBoundingClientRect().width;
-            const maxScrollX = this.ink.getWidth() - boundWidth;
-            const boundHeight = this.inkCanvas.getCanvas().getBoundingClientRect().height;
-            const maxScrollY = this.ink.getHeight() - boundHeight;
-            const nx = Math.min(maxScrollX, Math.max(0, scrollX + dx));
-            const ny = Math.min(maxScrollY, Math.max(0, scrollY + dy));
-            if ((nx !== scrollX) || (ny !== scrollY)) {
-                this.inkCanvas.xlate(nx - scrollX, ny - scrollY);
-                this.updateBounds();
+    public pan(dx: number, dy: number, vs: ViewState) {
+        if (vs === ViewState.Ongoing) {
+            if ((dx !== 0) || (dy !== 0)) {
+                const scrollX = this.inkCanvas.getScrollX();
+                const scrollY = this.inkCanvas.getScrollY();
+                const boundWidth = this.inkCanvasBounds().width;
+                const maxScrollX = this.ink.getWidth() - boundWidth;
+                const boundHeight = this.inkCanvasBounds().height;
+                const maxScrollY = this.ink.getHeight() - boundHeight;
+                const nx = Math.min(maxScrollX, Math.max(0, scrollX + dx));
+                const ny = Math.min(maxScrollY, Math.max(0, scrollY + dy));
+                if ((nx !== scrollX) || (ny !== scrollY)) {
+                    this.inkCanvas.xlate(nx - scrollX, ny - scrollY);
+                    this.updateBounds();
+                    this.maxToViewport();
+                }
             }
+        } else if (vs === ViewState.Start) {
+            this.maxIn();
+            this.maxToViewport();
+        } else {
+            this.maxOut();
+            this.maxToMax();
         }
     }
 
     public scrollLeft(factor = 2) {
         if (this.inkCanvas.getScrollX() > 0) {
-            const xoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().width / factor,
+            const xoff = - Math.min(this.inkCanvasBounds().width / factor,
                 this.inkCanvas.getScrollX());
             this.inkCanvas.xlate(xoff, 0);
             this.updateBounds();
@@ -179,16 +231,24 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
     public scrollUp(factor = 2) {
         if (this.inkCanvas.getScrollY() > 0) {
-            const yoff = - Math.min(this.inkCanvas.getCanvas().getBoundingClientRect().height / factor,
+            const yoff = - Math.min(this.inkCanvasBounds().height / factor,
                 this.inkCanvas.getScrollY());
             this.inkCanvas.xlate(0, yoff);
             this.updateBounds();
         }
     }
 
+    public inkCanvasBounds() {
+        const bounds = this.inkComponentRoot.getBoundingClientRect();
+        if (bounds.width === 0) {
+            console.log("null bounds!");
+        }
+        return bounds;
+    }
+
     public scrollRight(factor = 2) {
         const scrollX = this.inkCanvas.getScrollX();
-        const boundWidth = this.inkCanvas.getCanvas().getBoundingClientRect().width;
+        const boundWidth = this.inkCanvasBounds().width;
         const maxScrollX = this.ink.getWidth() - boundWidth;
         if (scrollX < maxScrollX) {
             const remain = maxScrollX - scrollX;
@@ -200,7 +260,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
 
     public scrollDown(factor = 2) {
         const scrollY = this.inkCanvas.getScrollY();
-        const boundHeight = this.inkCanvas.getCanvas().getBoundingClientRect().height;
+        const boundHeight = this.inkCanvasBounds().height;
         const maxScrollY = this.ink.getHeight() - boundHeight;
         if (scrollY < maxScrollY) {
             const remain = maxScrollY - scrollY;
@@ -231,10 +291,26 @@ export class Canvas extends DataObject implements IFluidHTMLView {
                 this.hideStrokeIndex();
                 break;
             case "z":
-                this.zoom(1.1);
+                this.zoom(1,ViewState.Start);
+                this.zoom(1.1, ViewState.Ongoing);
+                this.zoom(1, ViewState.End);
                 break;
             case "Z":
-                this.zoom(0.9);
+                this.zoom(1,ViewState.Start);
+                this.zoom(0.9, ViewState.Ongoing);
+                this.zoom(1, ViewState.End);
+                break;
+            case "M":
+                this.maxIn();
+                break;
+            case "m":
+                this.maxOut();
+                break;
+            case "V":
+                this.maxToViewport();
+                break;
+            case "v":
+                this.maxToMax();
                 break;
             default:
                 break;
@@ -266,6 +342,7 @@ export class Canvas extends DataObject implements IFluidHTMLView {
         miniMapViewOutline.style.width = `${width}px`;
         const height = Math.floor(scaleH * h);
         miniMapViewOutline.style.height = `${height}px`;
+
         if (this.indexOverlay !== undefined) {
             this.showStrokeIndex();
         }

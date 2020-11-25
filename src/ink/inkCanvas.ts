@@ -120,6 +120,12 @@ interface IViewportCoords extends Rectangle {
     ph: number;
 }
 
+export enum ViewState {
+    Start,
+    Ongoing,
+    End
+}
+
 const eraserWidth = 32;
 const eraserHeight = 20;
 const defaultThickness = 4;
@@ -129,8 +135,9 @@ export class InkCanvas {
     private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
     private readonly currentPen: IPen;
     private eraseMode = false;
-    public panHandler: (dx: number, dy: number) => void;
-    public zoomHandler: (d: number) => void;
+    public panHandler: (dx: number, dy: number, vs: ViewState) => void;
+    public zoomHandler: (d: number, vs: ViewState) => void;
+    public bounds: () => DOMRect;
     public readonly viewportCoords: IViewportCoords;
     public sceneRoot: SVGSVGElement;
 
@@ -140,26 +147,31 @@ export class InkCanvas {
         this.model.on("eraseStrokes", this.handleEraseStrokes.bind(this));
         this.sceneRoot = this.scene.root;
         this.sceneRoot.style.touchAction = "none";
-        // safari not quite there with pointer events; drops some from apple pencil
-        if (!isiOS()) {
-            this.sceneRoot.addEventListener("pointerdown", this.handlePointerDown.bind(this));
-            this.sceneRoot.addEventListener("pointermove", this.handlePointerMove.bind(this));
-            this.sceneRoot.addEventListener("pointerup", this.handlePointerUp.bind(this));
-        } else {
-            this.sceneRoot.addEventListener("touchstart", this.handleTouchStart.bind(this));
-            this.sceneRoot.addEventListener("touchmove", this.handleTouchMove.bind(this));
-            this.sceneRoot.addEventListener("touchend", this.handleTouchEnd.bind(this));
-            this.sceneRoot.addEventListener("touchleave", this.handleTouchEnd.bind(this));
-        }
+        this.addHandlers(this.sceneRoot);
         this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
             thickness: defaultThickness,
         };
+        this.bounds = () => this.sceneRoot.getBoundingClientRect();
+    }
+
+    public addHandlers(elm: Element) {
+        // safari not quite there with pointer events; drops some from apple pencil
+        if (!isiOS()) {
+            elm.addEventListener("pointerdown", this.handlePointerDown.bind(this));
+            elm.addEventListener("pointermove", this.handlePointerMove.bind(this));
+            elm.addEventListener("pointerup", this.handlePointerUp.bind(this));
+        } else {
+            elm.addEventListener("touchstart", this.handleTouchStart.bind(this));
+            elm.addEventListener("touchmove", this.handleTouchMove.bind(this));
+            elm.addEventListener("touchend", this.handleTouchEnd.bind(this));
+            elm.addEventListener("touchleave", this.handleTouchEnd.bind(this));
+        }
     }
 
     public resize() {
-        const bounds = this.sceneRoot.getBoundingClientRect();
+        const bounds = this.bounds();
         // TODO: review device pixel scale for here
         this.viewportCoords.pw = bounds.width;
         this.viewportCoords.ph = bounds.height;
@@ -177,6 +189,9 @@ export class InkCanvas {
     }
 
     public xlate(xoff: number, yoff: number) {
+        if (xoff === Infinity) {
+            console.log("arrgghh!");
+        }
         if ((xoff !== 0) || (yoff !== 0)) {
             this.setViewportCoords(this.viewportCoords.x + xoff, this.viewportCoords.y + yoff,
                 this.viewportCoords.width, this.viewportCoords.height);
@@ -310,6 +325,12 @@ export class InkCanvas {
                 id: evt.pointerId, touchtime: Date.now(),
                 x: evt.clientX, y: evt.clientY,
             });
+            if (this.panHandler !== undefined) {
+                this.panHandler(0, 0, ViewState.Start);
+            }
+            if (this.zoomHandler !== undefined) {
+                this.zoomHandler(1, ViewState.Start);
+            }
         }
     }
 
@@ -358,7 +379,7 @@ export class InkCanvas {
                     dy *= this.viewportCoords.scaleX;
                     if (this.panHandler !== undefined) {
                         const startTime = Date.now();
-                        this.panHandler(-dx, -dy);
+                        this.panHandler(-dx, -dy, ViewState.Ongoing);
                         const elapsed = Date.now() - startTime;
                         console.log(`pan ${dx},${dy}: ${elapsed}ms`);
                     }
@@ -387,7 +408,7 @@ export class InkCanvas {
                 if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
                     const dpix = d - prevdiff;
                     const startTime = Date.now();
-                    this.zoomHandler(dpix * this.viewportCoords.scaleX);
+                    this.zoomHandler(dpix * this.viewportCoords.scaleX, ViewState.Ongoing);
                     const elapsed = Date.now() - startTime;
                     console.log(`zoom ${dpix}: ${elapsed}ms`);
                 }
@@ -417,6 +438,12 @@ export class InkCanvas {
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
             // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
             // momentum scroll here
+            if (this.panHandler !== undefined) {
+                this.panHandler(0, 0, ViewState.End);
+            }
+            if (this.zoomHandler !== undefined) {
+                this.zoomHandler(1, ViewState.End);
+            }
             this.localActiveTouchMap.clear();
         }
     }
