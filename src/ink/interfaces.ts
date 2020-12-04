@@ -246,3 +246,11 @@ export interface IInkStroke {
      */
     inactive?: boolean;
 }
+
+export interface IInkCanvasContainer {
+    pan(dx: number, dy: number): void;
+    zoom(d: number, cx: number, cy: number, wheel?: boolean): void;
+    toCanvasCoordinates(pt: IPoint): void;
+    scale: number;
+    sceneContainer: HTMLDivElement;
+}

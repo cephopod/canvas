@@ -3,18 +3,7 @@ import { IPoint } from "./interfaces";
 const svgns = "http://www.w3.org/2000/svg";
 
 export class SVGScene {
-    static getMax(scene: SVGScene) {
-        const maxScene = new SVGScene(scene.w, scene.h);
-        maxScene.root.removeChild(maxScene.root.firstElementChild);
-        maxScene.addRef(scene.root.firstElementChild);
-        maxScene.setViewbox(0, 0, maxScene.w, maxScene.h);
-        maxScene.root.setAttribute("preserveAspectRatio", "none");
-        maxScene.root.style.width = "100%";
-        maxScene.root.style.height = "100%";
-        return maxScene;
-    }
-
-    static makeCirle(fill: string, cx: number, cy: number, r: number) {
+    static makeCircle(fill: string, cx: number, cy: number, r: number) {
         const circleElt = document.createElementNS(svgns, "circle");
         circleElt.setAttribute("cx", cx.toString());
         circleElt.setAttribute("cy", cy.toString());
@@ -39,16 +28,6 @@ export class SVGScene {
 
     constructor(public w: number, public h: number) {
         this.createRoot(w, h);
-    }
-
-    addRef(elm: Element) {
-        // TODO: generate a unique one
-        elm.id = "sceneContent";
-        const useElm = document.createElementNS(svgns, "use");
-        useElm.setAttribute("href", `#${elm.id}`);
-        useElm.setAttribute("x","0");
-        useElm.setAttribute("y","0");
-        this.root.appendChild(useElm);
     }
 
     createRoot(w: number, h: number) {

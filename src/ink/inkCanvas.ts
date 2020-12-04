@@ -2,7 +2,10 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation } from "./interfaces";
+import {
+    IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation,
+    IInkCanvasContainer,
+} from "./interfaces";
 import { SVGScene } from "./svg";
 import { Ink, Rectangle } from ".";
 
@@ -75,7 +78,7 @@ function addShapes(elt: SVGGElement, startPoint: IInkPoint, endPoint: IInkPoint,
 
     // End circle
     // TODO should only draw if not eclipsed by the previous circle, be careful about single-point
-    const circle = SVGScene.makeCirle(fillColor, endPoint.x, endPoint.y, widthAtEnd);
+    const circle = SVGScene.makeCircle(fillColor, endPoint.x, endPoint.y, widthAtEnd);
     elt.appendChild(circle);
 }
 
@@ -98,34 +101,6 @@ interface IActiveTouch {
     prevdiff?: number;
 }
 
-/**
- * The rectangle represents vx, vy, vw, vh in canvas coordinates.
- */
-interface IViewportCoords extends Rectangle {
-    /**
-     *  vw / pw
-     */
-    scaleX: number;
-    /**
-     *  vh / ph
-     */
-    scaleY: number;
-    /**
-     * Physical width of viewport canvas.
-     */
-    pw: number;
-    /**
-     * Physical Height of viewport canvas.
-     */
-    ph: number;
-}
-
-export enum ViewState {
-    Start,
-    Ongoing,
-    End
-}
-
 const eraserWidth = 32;
 const eraserHeight = 20;
 const defaultThickness = 4;
@@ -135,25 +110,19 @@ export class InkCanvas {
     private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
     private readonly currentPen: IPen;
     private eraseMode = false;
-    public panHandler: (dx: number, dy: number, vs: ViewState) => void;
-    public zoomHandler: (d: number, vs: ViewState) => void;
-    public bounds: () => DOMRect;
-    public readonly viewportCoords: IViewportCoords;
     public sceneRoot: SVGSVGElement;
 
-    constructor(private readonly scene: SVGScene, private readonly model: Ink) {
+    constructor(private readonly container: IInkCanvasContainer,
+        private readonly scene: SVGScene, private readonly model: Ink) {
         this.model.on("clear", this.clearCanvas.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
         this.model.on("eraseStrokes", this.handleEraseStrokes.bind(this));
         this.sceneRoot = this.scene.root;
         this.sceneRoot.style.touchAction = "none";
-        this.addHandlers(this.sceneRoot);
-        this.viewportCoords = new Rectangle(0, 0, model.getWidth(), model.getHeight()) as IViewportCoords;
         this.currentPen = {
             color: { r: 0, g: 161, b: 241, a: 0 },
             thickness: defaultThickness,
         };
-        this.bounds = () => this.sceneRoot.getBoundingClientRect();
     }
 
     public addHandlers(elm: Element) {
@@ -168,86 +137,6 @@ export class InkCanvas {
             elm.addEventListener("touchend", this.handleTouchEnd.bind(this));
             elm.addEventListener("touchleave", this.handleTouchEnd.bind(this));
         }
-    }
-
-    public resize() {
-        const bounds = this.bounds();
-        // TODO: review device pixel scale for here
-        this.viewportCoords.pw = bounds.width;
-        this.viewportCoords.ph = bounds.height;
-        this.viewportCoords.scaleX = this.viewportCoords.width / this.viewportCoords.pw;
-        this.viewportCoords.scaleY = this.viewportCoords.height / this.viewportCoords.ph;
-        this.updateViewbox();
-    }
-
-    public setViewportCoords(x: number, y: number, w: number, h: number) {
-        this.viewportCoords.x = x;
-        this.viewportCoords.y = y;
-        this.viewportCoords.width = w;
-        this.viewportCoords.height = h;
-        this.resize();
-    }
-
-    public xlate(xoff: number, yoff: number) {
-        if (xoff === Infinity) {
-            console.log("arrgghh!");
-        }
-        if ((xoff !== 0) || (yoff !== 0)) {
-            this.setViewportCoords(this.viewportCoords.x + xoff, this.viewportCoords.y + yoff,
-                this.viewportCoords.width, this.viewportCoords.height);
-        }
-    }
-
-    public zoom(f: number, cx: number, cy: number) {
-        const minWidth = this.viewportCoords.pw / 4;
-        const minHeight = this.viewportCoords.ph / 4;
-        if (f > 0.0) {
-            let nw = this.viewportCoords.width / f;
-            let nh = this.viewportCoords.height / f;
-            if ((nw > this.model.getWidth()) || (nh > this.model.getHeight())) {
-                // max zoom
-                if (this.model.getWidth() > this.model.getHeight()) {
-                    nh = this.model.getHeight();
-                    nw = (this.viewportCoords.pw / this.viewportCoords.ph) * nh;
-                }
-                this.viewportCoords.width = nw;
-                this.viewportCoords.height = nh;
-                this.resize();
-            }
-            else if ((nw !== this.viewportCoords.width) || (nh !== this.viewportCoords.height)) {
-                if ((nw < minWidth) || (nh < minHeight)) {
-                    nw = minWidth;
-                    nh = minHeight;
-                }
-                this.viewportCoords.width = nw;
-                this.viewportCoords.height = nh;
-                if (((this.viewportCoords.x + this.viewportCoords.width) > this.model.getWidth()) ||
-                    ((this.viewportCoords.y + this.viewportCoords.height) > this.model.getHeight())) {
-                    this.viewportCoords.x = 0;
-                    this.viewportCoords.y = 0;
-                }
-                // this.viewportCoords.x = Math.max(0, cx - (nw / 2.0));
-                // this.viewportCoords.y = Math.max(0, cy - (nh / 2.0));
-                this.resize();
-            }
-        }
-    }
-
-    public updateViewbox() {
-        this.scene.setViewbox(this.viewportCoords.x, this.viewportCoords.y,
-            this.viewportCoords.width, this.viewportCoords.height);
-    }
-
-    public getCanvas() {
-        return this.sceneRoot;
-    }
-
-    public getScrollX() {
-        return this.viewportCoords.x;
-    }
-
-    public getScrollY() {
-        return this.viewportCoords.y;
     }
 
     public setPenColor(color: IColor) {
@@ -265,15 +154,9 @@ export class InkCanvas {
         this.clearCanvas();
     }
 
-    private toCanvasCoordinates(p: IPoint) {
-        p.x = (p.x * this.viewportCoords.scaleX) + this.viewportCoords.x;
-        p.y = (p.y * this.viewportCoords.scaleY) + this.viewportCoords.y;
-    }
-
     private eraseStrokes(x: number, y: number) {
         const strokes = new Map<string, IInkStroke>();
         const cp: IPoint = { x, y };
-        this.toCanvasCoordinates(cp);
         const searchBox = new Rectangle(cp.x, cp.y, eraserWidth, eraserHeight);
         this.model.strokeIndex.search(searchBox, (p, id) => {
             if (id !== undefined) {
@@ -309,7 +192,7 @@ export class InkCanvas {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
             if (this.eraseMode) {
-                this.eraseStrokes(evt.clientX, evt.clientY);
+                this.eraseStrokes(evt.offsetX, evt.offsetY);
             } else {
                 const strokeId = this.model.createStroke(this.currentPen).id;
                 this.localActiveStrokeMap.set(evt.pointerId, strokeId);
@@ -320,17 +203,10 @@ export class InkCanvas {
         }
         else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
-            // this.scratchOut(`touchdown! ${evt.clientX} ${evt.clientY} ${evt.pointerId}`);
             this.localActiveTouchMap.set(evt.pointerId, {
                 id: evt.pointerId, touchtime: Date.now(),
                 x: evt.clientX, y: evt.clientY,
             });
-            if (this.panHandler !== undefined) {
-                this.panHandler(0, 0, ViewState.Start);
-            }
-            if (this.zoomHandler !== undefined) {
-                this.zoomHandler(1, ViewState.Start);
-            }
         }
     }
 
@@ -348,7 +224,7 @@ export class InkCanvas {
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && (!evt.ctrlKey))) {
             this.localActiveTouchMap.clear();
             if (this.eraseMode) {
-                this.eraseStrokes(evt.clientX, evt.clientY);
+                this.eraseStrokes(evt.offsetX, evt.offsetY);
             } else if (this.localActiveStrokeMap.has(evt.pointerId)) {
                 const evobj = (evt as any);
                 let evts: PointerEvent[];
@@ -369,26 +245,24 @@ export class InkCanvas {
                 const t = this.localActiveTouchMap.get(evt.pointerId);
                 if (t !== undefined) {
                     // single touch is pan
-                    let dx = Math.floor(evt.clientX - t.x);
-                    let dy = Math.floor(evt.clientY - t.y);
+                    const dx = Math.floor(evt.clientX - t.x);
+                    const dy = Math.floor(evt.clientY - t.y);
+                    // Velocity info...
                     // const dt = Math.max(Date.now() - t.touchtime, 1);
                     // const vx = (1000 * (dx / dt)).toFixed(1);
                     // const vy = (1000 * (dy / dt)).toFixed(1);
-                    // this.scratchOut(`touchmove dx = ${dx} dy = ${dy} dt = ${dt} vx=${vx} vy=${vy}`);
-                    dx *= this.viewportCoords.scaleX;
-                    dy *= this.viewportCoords.scaleX;
-                    if (this.panHandler !== undefined) {
-                        const startTime = Date.now();
-                        this.panHandler(-dx, -dy, ViewState.Ongoing);
-                        const elapsed = Date.now() - startTime;
-                        console.log(`pan ${dx},${dy}: ${elapsed}ms`);
-                    }
+                    const startTime = Date.now();
+                    this.container.pan(-dx, -dy);
+                    const elapsed = Date.now() - startTime;
+                    console.log(`pan ${dx},${dy}: ${elapsed}ms`);
                 }
             }
             else if (this.localActiveTouchMap.size === 2) {
                 // two fingers is zoom
                 let prevX = Nope;
                 let prevY = Nope;
+                let cx: number;
+                let cy: number;
                 let sum = 0;
                 let prevdiff = Nope;
                 for (const t of this.localActiveTouchMap.values()) {
@@ -396,6 +270,8 @@ export class InkCanvas {
                         const dx = t.x - prevX;
                         const dy = t.y - prevY;
                         sum += (dx * dx) + (dy * dy);
+                        cx = (t.x + prevX) / 2;
+                        cy = (t.y + prevY) / 2;
                     } else {
                         prevX = t.x;
                         prevY = t.y;
@@ -405,13 +281,11 @@ export class InkCanvas {
                     }
                 }
                 d = Math.sqrt(sum);
-                if ((this.zoomHandler !== undefined) && (prevdiff > 0)) {
-                    const dpix = d - prevdiff;
-                    const startTime = Date.now();
-                    this.zoomHandler(dpix * this.viewportCoords.scaleX, ViewState.Ongoing);
-                    const elapsed = Date.now() - startTime;
-                    console.log(`zoom ${dpix}: ${elapsed}ms`);
-                }
+                const dpix = d - prevdiff;
+                const startTime = Date.now();
+                this.container.zoom(dpix, cx, cy, false);
+                const elapsed = Date.now() - startTime;
+                console.log(`zoom ${dpix}: ${elapsed}ms`);
             }
             this.localActiveTouchMap.set(evt.pointerId, {
                 id: evt.pointerId, touchtime: Date.now(),
@@ -436,14 +310,6 @@ export class InkCanvas {
             }
         } if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
-            // this.scratchOut(`touchup! ${evt.clientX} ${evt.clientY}`);
-            // momentum scroll here
-            if (this.panHandler !== undefined) {
-                this.panHandler(0, 0, ViewState.End);
-            }
-            if (this.zoomHandler !== undefined) {
-                this.zoomHandler(1, ViewState.End);
-            }
             this.localActiveTouchMap.clear();
         }
     }
@@ -467,7 +333,6 @@ export class InkCanvas {
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
-        this.toCanvasCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
@@ -486,7 +351,7 @@ export class InkCanvas {
             time: Date.now(),
             pressure,
         };
-        this.toCanvasCoordinates(inkPt);
+        this.container.toCanvasCoordinates(inkPt);
         this.model.appendPointToStroke(inkPt, strokeId);
     }
 
