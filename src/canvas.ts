@@ -175,7 +175,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             deltaScale = -1;
         }
         if (!wheel) {
-            newScale = this.scale + (deltaScale / ((this.scaleSensitivity * 5) / this.scale));
+            newScale = this.scale + (deltaScale / ((this.scaleSensitivity * 8) / this.scale));
         }
         else {
             newScale = this.scale + (deltaScale / (this.scaleSensitivity / this.scale));
