@@ -152,10 +152,10 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             const stx = this.scrollX * this.scale;
             const sty = this.scrollY * this.scale;
             this.sceneContainer.style.transform =
-                `translate(${-stx}px,${-sty}px) scale(${this.scale})`;
+                `translate3d(${-stx}px,${-sty}px, 0px) scale(${this.scale})`;
         } else {
             this.sceneContainer.style.transform =
-                `translate(${-this.scrollX}px,${-this.scrollY}px)`;
+                `translate3d(${-this.scrollX}px,${-this.scrollY}px,0px)`;
         }
     }
 
