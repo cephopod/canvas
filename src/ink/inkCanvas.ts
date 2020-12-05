@@ -264,7 +264,7 @@ export class InkCanvas {
                 let cx: number;
                 let cy: number;
                 let sum = 0;
-                let prevdiff = Nope;
+                let prevdiff: number;
                 for (const t of this.localActiveTouchMap.values()) {
                     if (prevX >= 0) {
                         const dx = t.x - prevX;
@@ -280,12 +280,14 @@ export class InkCanvas {
                         prevdiff = t.prevdiff;
                     }
                 }
-                d = Math.sqrt(sum);
-                const dpix = d - prevdiff;
-                const startTime = Date.now();
-                this.container.zoom(dpix, cx, cy, false);
-                const elapsed = Date.now() - startTime;
-                console.log(`zoom ${dpix}: ${elapsed}ms`);
+                if (prevdiff !== undefined) {
+                    d = Math.sqrt(sum);
+                    const dpix = d - prevdiff;
+                    const startTime = Date.now();
+                    this.container.zoom(dpix, cx, cy, false);
+                    const elapsed = Date.now() - startTime;
+                    console.log(`zoom ${dpix}: ${elapsed}ms`);
+                }
             }
             this.localActiveTouchMap.set(evt.pointerId, {
                 id: evt.pointerId, touchtime: Date.now(),

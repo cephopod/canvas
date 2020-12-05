@@ -166,18 +166,20 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
      * @param cy Center Y in client coordinates
      */
     public zoom(factor: number, cx: number, cy: number, wheel = true) {
-        let scs = this.scaleSensitivity;
-        if (!wheel) {
-            scs = 10 * this.scaleSensitivity;
-        }
+        let newScale: number;
+        const minScale = this.inkCanvasBounds().width / this.ink.getWidth();
         let deltaScale: number;
         if (factor > 0) {
             deltaScale = 1;
         } else {
             deltaScale = -1;
         }
-        const minScale = this.inkCanvasBounds().width / this.ink.getWidth();
-        const newScale = this.scale + (deltaScale / (scs / this.scale));
+        if (!wheel) {
+            newScale = this.scale + (deltaScale / ((this.scaleSensitivity * 5) / this.scale));
+        }
+        else {
+            newScale = this.scale + (deltaScale / (this.scaleSensitivity / this.scale));
+        }
         if ((newScale !== this.scale) && (newScale <= 8.0) && (newScale >= minScale)) {
             const ccx = (cx / this.scale) + this.scrollX;
             const ccy = (cy / this.scale) + this.scrollY;
@@ -187,6 +189,8 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             this.scrollY = ccy - (cy / newScale);
             this.updateSceneTransform();
             this.updateBounds();
+        } else {
+            console.log(`new scale out of bounds ${newScale} factor ${factor}`);
         }
     }
 
