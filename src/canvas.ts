@@ -176,8 +176,9 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         } else {
             deltaScale = -1;
         }
+        const minScale = this.inkCanvasBounds().width / this.ink.getWidth();
         const newScale = this.scale + (deltaScale / (scs / this.scale));
-        if ((newScale !== this.scale) && (newScale <= 8.0) && (newScale >= 0.2)) {
+        if ((newScale !== this.scale) && (newScale <= 8.0) && (newScale >= minScale)) {
             const ccx = (cx / this.scale) + this.scrollX;
             const ccy = (cy / this.scale) + this.scrollY;
             console.log(`ccx ${ccx} ccy ${ccy} cx ${cx} cy ${cy} sc ${this.scale} nsc ${newScale} tx ${this.scrollX}`);
@@ -200,8 +201,8 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
                 proposedScrollY = 0;
             }
             const viewportBounds = this.inkCanvasBounds();
-            const maxScrollX = this.ink.getWidth() - viewportBounds.width;
-            const maxScrollY = this.ink.getHeight() - viewportBounds.height;
+            const maxScrollX = this.ink.getWidth() - (viewportBounds.width / this.scale);
+            const maxScrollY = this.ink.getHeight() - (viewportBounds.height / this.scale);
             if (proposedScrollX > maxScrollX) {
                 proposedScrollX = maxScrollX;
             }
@@ -248,7 +249,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         this.scrollY = 0;
         this.scale = 1;
         this.updateSceneTransform();
-        this.updateSceneTransform();
+        this.updateBounds();
     }
 
     public handlekeydown(evt: KeyboardEvent) {
