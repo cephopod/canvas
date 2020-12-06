@@ -101,6 +101,10 @@ interface IActiveTouch {
     prevdiff?: number;
 }
 
+interface IPointerFrameEvent extends PointerEvent {
+    getCoalescedEvents?(): PointerEvent[];
+}
+
 const eraserWidth = 32;
 const eraserHeight = 20;
 const defaultThickness = 4;
@@ -192,7 +196,10 @@ export class InkCanvas {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
             if (this.eraseMode) {
-                this.eraseStrokes(evt.offsetX, evt.offsetY);
+                const ccx = this.container.toCanvasX(evt.clientX);
+                const ccy = this.container.toCanvasY(evt.clientY);
+
+                this.eraseStrokes(ccx, ccy);
             } else {
                 const strokeId = this.model.createStroke(this.currentPen).id;
                 this.localActiveStrokeMap.set(evt.pointerId, strokeId);
@@ -219,17 +226,18 @@ export class InkCanvas {
         evt.preventDefault();
     }
 
-    private handlePointerMove(evt: PointerEvent) {
+    private handlePointerMove(evt: IPointerFrameEvent) {
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && (!evt.ctrlKey))) {
             this.localActiveTouchMap.clear();
             if (this.eraseMode) {
-                this.eraseStrokes(evt.offsetX, evt.offsetY);
+                const ccx = this.container.toCanvasX(evt.clientX);
+                const ccy = this.container.toCanvasY(evt.clientY);
+                this.eraseStrokes(ccx, ccy);
             } else if (this.localActiveStrokeMap.has(evt.pointerId)) {
-                const evobj = (evt as any);
                 let evts: PointerEvent[];
-                if (evobj.getCoalescedEvents !== undefined) {
-                    evts = evobj.getCoalescedEvents();
+                if (evt.getCoalescedEvents !== undefined) {
+                    evts = evt.getCoalescedEvents();
                 }
                 if (evts === undefined) {
                     evts = [evt];
@@ -245,8 +253,17 @@ export class InkCanvas {
                 const t = this.localActiveTouchMap.get(evt.pointerId);
                 if (t !== undefined) {
                     // single touch is pan
-                    const dx = Math.floor(evt.clientX - t.x);
-                    const dy = Math.floor(evt.clientY - t.y);
+                    let cevt = evt;
+                    let evts: PointerEvent[];
+                    if (evt.getCoalescedEvents !== undefined) {
+                        evts = evt.getCoalescedEvents();
+                    }
+                    if (evts !== undefined) {
+                        cevt = evts[evts.length - 1];
+                    }
+                    // TODO: use offset in t and here b/c is logical distance
+                    const dx = Math.floor(cevt.clientX - t.x);
+                    const dy = Math.floor(cevt.clientY - t.y);
                     // Velocity info...
                     // const dt = Math.max(Date.now() - t.touchtime, 1);
                     // const vx = (1000 * (dx / dt)).toFixed(1);
@@ -329,9 +346,12 @@ export class InkCanvas {
         if (strokeId === undefined) {
             throw new Error("Unexpected pointer ID trying to append to stroke");
         }
+        const ccx = this.container.toCanvasX(evt.clientX);
+        const ccy = this.container.toCanvasY(evt.clientY);
+
         const inkPt = {
-            x: evt.offsetX,
-            y: evt.offsetY,
+            x: ccx,
+            y: ccy,
             time: Date.now(),
             pressure: (evt.pointerType !== "touch") ? evt.pressure : 0.5,
         };
@@ -347,9 +367,11 @@ export class InkCanvas {
         if (t.force > 0) {
             pressure = t.force;
         }
+        const ccx = this.container.toCanvasX(t.clientX);
+        const ccy = this.container.toCanvasY(t.clientY);
         const inkPt = {
-            x: t.clientX,
-            y: t.clientY,
+            x: ccx,
+            y: ccy,
             time: Date.now(),
             pressure,
         };

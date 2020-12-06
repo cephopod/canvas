@@ -32,6 +32,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     private scrollY = 0;
     public scale = 1;
     public scaleSensitivity = 10;
+    private bounds: DOMRect;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -53,7 +54,8 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     }
 
     private resize() {
-        this.updateBounds();
+        this.bounds = this.inkComponentRoot.getBoundingClientRect();
+        this.updateBoundsView();
     }
 
     private createCanvasDom() {
@@ -159,6 +161,14 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         }
     }
 
+    public toCanvasX(cx: number) {
+        return (cx / this.scale) + this.scrollX;
+    }
+
+    public toCanvasY(cy: number) {
+        return (cy / this.scale) + this.scrollY;
+    }
+
     /**
      * Zoom centered on cx, cy
      * @param factor Zoom in or out (magnitude ignored for now)
@@ -188,7 +198,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             this.scrollX = ccx - (cx / newScale);
             this.scrollY = ccy - (cy / newScale);
             this.updateSceneTransform();
-            this.updateBounds();
+            this.updateBoundsView();
         } else {
             console.log(`new scale out of bounds ${newScale} factor ${factor}`);
         }
@@ -217,7 +227,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
                 this.scrollX = proposedScrollX;
                 this.scrollY = proposedScrollY;
                 this.updateSceneTransform();
-                this.updateBounds();
+                this.updateBoundsView();
             }
         }
     }
@@ -239,8 +249,10 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     }
 
     public inkCanvasBounds() {
-        const bounds = this.inkComponentRoot.getBoundingClientRect();
-        return bounds;
+        if (this.bounds === undefined) {
+            this.bounds = this.inkComponentRoot.getBoundingClientRect();
+        }
+        return this.bounds;
     }
 
     public toCanvasCoordinates(pt: IPoint) {
@@ -253,7 +265,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         this.scrollY = 0;
         this.scale = 1;
         this.updateSceneTransform();
-        this.updateBounds();
+        this.updateBoundsView();
     }
 
     public handlekeydown(evt: KeyboardEvent) {
@@ -293,7 +305,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         this.miniMap.appendChild(miniMapViewOutline);
     }
 
-    private updateBounds() {
+    private updateBoundsView() {
         const offX = this.scrollX / this.ink.getWidth();
         const offY = this.scrollY / this.ink.getHeight();
         const miniMapViewOutline = this.miniMap.firstElementChild as HTMLDivElement;

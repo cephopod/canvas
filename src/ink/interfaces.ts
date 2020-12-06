@@ -250,6 +250,8 @@ export interface IInkStroke {
 export interface IInkCanvasContainer {
     pan(dx: number, dy: number): void;
     zoom(d: number, cx: number, cy: number, wheel?: boolean): void;
+    toCanvasX(cx: number): number;
+    toCanvasY(cy: number): number;
     toCanvasCoordinates(pt: IPoint): void;
     scale: number;
     sceneContainer: HTMLDivElement;
