@@ -13,8 +13,6 @@ interface IInkStrokeVis extends IInkStroke {
     elt?: SVGGElement;
 }
 
-const Nope = -1;
-
 class Vector {
     /**
      * Returns the vector resulting from rotating vector by angle
@@ -101,6 +99,12 @@ interface IActiveTouch {
     prevdiff?: number;
 }
 
+interface IActiveTouches {
+    touches: IActiveTouch[];
+    ccx: number;
+    ccy: number;
+}
+
 interface IPointerFrameEvent extends PointerEvent {
     getCoalescedEvents?(): PointerEvent[];
 }
@@ -111,10 +115,11 @@ const defaultThickness = 4;
 // const requestIdleCallback = (window as any).requestIdleCallback || function (fn) { setTimeout(fn, 1) };
 export class InkCanvas {
     private readonly localActiveStrokeMap: Map<number, string> = new Map();
-    private readonly localActiveTouchMap = new Map<number, IActiveTouch>();
+    private readonly localActiveTouchMap = new Map<number, IActiveTouches>();
     private readonly currentPen: IPen;
     private eraseMode = false;
     public sceneRoot: SVGSVGElement;
+    private frameScheduled = false;
 
     constructor(private readonly container: IInkCanvasContainer,
         private readonly scene: SVGScene, private readonly model: Ink) {
@@ -210,11 +215,51 @@ export class InkCanvas {
         }
         else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
+            const ccx = this.container.toCanvasX(evt.clientX);
+            const ccy = this.container.toCanvasY(evt.clientY);
             this.localActiveTouchMap.set(evt.pointerId, {
-                id: evt.pointerId, touchtime: Date.now(),
-                x: evt.clientX, y: evt.clientY,
+                ccx, ccy,
+                touches: [{
+                    id: evt.pointerId, touchtime: Date.now(),
+                    x: evt.clientX, y: evt.clientY,
+                }],
             });
         }
+    }
+
+    private renderMovementFrame() {
+        if (this.localActiveTouchMap.size === 1) {
+            for (const pointerId of this.localActiveTouchMap.keys()) {
+                const idTouches = this.localActiveTouchMap.get(pointerId);
+                const t = idTouches.touches[idTouches.touches.length - 1];
+                const pccx = this.container.toCanvasX(t.x);
+                const pccy = this.container.toCanvasY(t.y);
+
+                const dx = Math.floor(pccx - idTouches.ccx);
+                const dy = Math.floor(pccy - idTouches.ccy);
+                this.container.pan(-dx, -dy);
+            }
+        }
+        else if (this.localActiveTouchMap.size === 2) {
+            const tdown: IActiveTouch[] = [];
+            const tlast: IActiveTouch[] = [];
+            for (const pointerId of this.localActiveTouchMap.keys()) {
+                const idTouches = this.localActiveTouchMap.get(pointerId);
+                tlast.push(idTouches.touches[idTouches.touches.length - 1]);
+                tdown.push(idTouches.touches[0]);
+            }
+            const cx = (tdown[0].x + tdown[1].x) / 2;
+            const cy = (tdown[0].y + tdown[1].y) / 2;
+            let dx = tdown[0].x - tdown[1].x;
+            let dy = tdown[0].y - tdown[1].y;
+            const d1 = Math.sqrt(dx * dx + dy * dy);
+            dx = tlast[0].x - tlast[1].x;
+            dy = tlast[0].y - tlast[1].y;
+            const d2 = Math.sqrt(dx * dx + dy * dy);
+            const dpix = d2 - d1;
+            this.container.zoom(dpix, cx, cy, false);
+        }
+        this.frameScheduled = false;
     }
 
     private handleTouchStart(evt: TouchEvent) {
@@ -248,70 +293,17 @@ export class InkCanvas {
             }
         } else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && evt.ctrlKey)) {
-            let d = Nope;
-            if (this.localActiveTouchMap.size === 1) {
-                const t = this.localActiveTouchMap.get(evt.pointerId);
-                if (t !== undefined) {
-                    // single touch is pan
-                    let cevt = evt;
-                    let evts: PointerEvent[];
-                    if (evt.getCoalescedEvents !== undefined) {
-                        evts = evt.getCoalescedEvents();
-                    }
-                    if (evts !== undefined) {
-                        cevt = evts[evts.length - 1];
-                    }
-                    // TODO: use offset in t and here b/c is logical distance
-                    const dx = Math.floor(cevt.clientX - t.x);
-                    const dy = Math.floor(cevt.clientY - t.y);
-                    // Velocity info...
-                    // const dt = Math.max(Date.now() - t.touchtime, 1);
-                    // const vx = (1000 * (dx / dt)).toFixed(1);
-                    // const vy = (1000 * (dy / dt)).toFixed(1);
-                    const startTime = Date.now();
-                    this.container.pan(-dx, -dy);
-                    const elapsed = Date.now() - startTime;
-                    console.log(`pan ${dx},${dy}: ${elapsed}ms`);
+            const idTouches = this.localActiveTouchMap.get(evt.pointerId);
+            if (idTouches !== undefined) {
+                idTouches.touches.push({
+                    id: evt.pointerId, touchtime: Date.now(),
+                    x: evt.clientX, y: evt.clientY,
+                });
+                if (!this.frameScheduled) {
+                    this.frameScheduled = true;
+                    requestAnimationFrame(() => this.renderMovementFrame());
                 }
             }
-            else if (this.localActiveTouchMap.size === 2) {
-                // two fingers is zoom
-                let prevX = Nope;
-                let prevY = Nope;
-                let cx: number;
-                let cy: number;
-                let sum = 0;
-                let prevdiff: number;
-                for (const t of this.localActiveTouchMap.values()) {
-                    if (prevX >= 0) {
-                        const dx = t.x - prevX;
-                        const dy = t.y - prevY;
-                        sum += (dx * dx) + (dy * dy);
-                        cx = (t.x + prevX) / 2;
-                        cy = (t.y + prevY) / 2;
-                    } else {
-                        prevX = t.x;
-                        prevY = t.y;
-                    }
-                    if (t.id === evt.pointerId) {
-                        prevdiff = t.prevdiff;
-                    }
-                }
-                if (prevdiff !== undefined) {
-                    d = Math.sqrt(sum);
-                    const dpix = d - prevdiff;
-                    const startTime = Date.now();
-                    this.container.zoom(dpix, cx, cy, false);
-                    const elapsed = Date.now() - startTime;
-                    console.log(`zoom ${dpix}: ${elapsed}ms`);
-                }
-            }
-            this.localActiveTouchMap.set(evt.pointerId, {
-                id: evt.pointerId, touchtime: Date.now(),
-                x: evt.clientX, y: evt.clientY, prevdiff: d,
-            });
-        } else {
-            // this.scratchOut(`touchmove! ${evt.clientX} ${evt.clientY}`);
         }
     }
 
