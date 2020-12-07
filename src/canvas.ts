@@ -177,7 +177,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
      */
     public zoom(factor: number, cx: number, cy: number, wheel = true) {
         let newScale: number;
-        const minScale = this.inkCanvasBounds().width / this.ink.getWidth();
+        const minScale = this.inkCanvasBounds().height / this.ink.getHeight();
         let deltaScale: number;
         if (factor > 0) {
             deltaScale = 1;
@@ -185,12 +185,12 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             deltaScale = -1;
         }
         if (!wheel) {
-            newScale = this.scale + (deltaScale / ((this.scaleSensitivity * 8) / this.scale));
+            newScale = this.scale * factor;
         }
         else {
             newScale = this.scale + (deltaScale / (this.scaleSensitivity / this.scale));
         }
-        if ((newScale !== this.scale) && (newScale <= 8.0) && (newScale >= minScale)) {
+        if ((newScale !== this.scale) && (newScale <= 5.0) && (newScale >= minScale)) {
             const ccx = (cx / this.scale) + this.scrollX;
             const ccy = (cy / this.scale) + this.scrollY;
             // eslint-disable-next-line max-len

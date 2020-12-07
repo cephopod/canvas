@@ -228,38 +228,46 @@ export class InkCanvas {
     }
 
     private renderMovementFrame() {
+        this.frameScheduled = false;
         if (this.localActiveTouchMap.size === 1) {
             for (const pointerId of this.localActiveTouchMap.keys()) {
                 const idTouches = this.localActiveTouchMap.get(pointerId);
-                const t = idTouches.touches[idTouches.touches.length - 1];
-                const pccx = this.container.toCanvasX(t.x);
-                const pccy = this.container.toCanvasY(t.y);
-
-                const dx = Math.floor(pccx - idTouches.ccx);
-                const dy = Math.floor(pccy - idTouches.ccy);
-                this.container.pan(-dx, -dy);
+                if (idTouches.touches.length > 1) {
+                    const t = idTouches.touches[idTouches.touches.length - 1];
+                    const tprev = idTouches.touches[idTouches.touches.length - 2];
+                    const pccx = this.container.toCanvasX(t.x);
+                    const pccy = this.container.toCanvasY(t.y);
+                    const prevccx = this.container.toCanvasX(tprev.x);
+                    const prevccy = this.container.toCanvasY(tprev.y);
+                    const dx = Math.floor(pccx - prevccx);
+                    const dy = Math.floor(pccy - prevccy);
+                    this.container.pan(-dx, -dy);
+                }
             }
         }
         else if (this.localActiveTouchMap.size === 2) {
-            const tdown: IActiveTouch[] = [];
+            const tprev: IActiveTouch[] = [];
             const tlast: IActiveTouch[] = [];
             for (const pointerId of this.localActiveTouchMap.keys()) {
                 const idTouches = this.localActiveTouchMap.get(pointerId);
-                tlast.push(idTouches.touches[idTouches.touches.length - 1]);
-                tdown.push(idTouches.touches[0]);
+                if (idTouches.touches.length > 1) {
+                    tlast.push(idTouches.touches[idTouches.touches.length - 1]);
+                    tprev.push(idTouches.touches[idTouches.touches.length - 2]);
+                } else {
+                    return;
+                }
             }
-            const cx = (tdown[0].x + tdown[1].x) / 2;
-            const cy = (tdown[0].y + tdown[1].y) / 2;
-            let dx = tdown[0].x - tdown[1].x;
-            let dy = tdown[0].y - tdown[1].y;
+            const cx = (tprev[0].x + tprev[1].x) / 2;
+            const cy = (tprev[0].y + tprev[1].y) / 2;
+            let dx = tprev[0].x - tprev[1].x;
+            let dy = tprev[0].y - tprev[1].y;
             const d1 = Math.sqrt(dx * dx + dy * dy);
             dx = tlast[0].x - tlast[1].x;
             dy = tlast[0].y - tlast[1].y;
             const d2 = Math.sqrt(dx * dx + dy * dy);
-            const dpix = d2 - d1;
+            const dpix = d2 / d1;
             this.container.zoom(dpix, cx, cy, false);
         }
-        this.frameScheduled = false;
     }
 
     private handleTouchStart(evt: TouchEvent) {
