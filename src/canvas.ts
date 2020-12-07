@@ -193,6 +193,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         if ((newScale !== this.scale) && (newScale <= 8.0) && (newScale >= minScale)) {
             const ccx = (cx / this.scale) + this.scrollX;
             const ccy = (cy / this.scale) + this.scrollY;
+            // eslint-disable-next-line max-len
             // console.log(`ccx ${ccx} ccy ${ccy} cx ${cx} cy ${cy} sc ${this.scale} nsc ${newScale} tx ${this.scrollX}`);
             this.scale = newScale;
             this.scrollX = ccx - (cx / newScale);
