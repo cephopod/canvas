@@ -141,10 +141,10 @@ export class InkCanvas {
             elm.addEventListener("pointermove", this.handlePointerMove.bind(this));
             elm.addEventListener("pointerup", this.handlePointerUp.bind(this));
         } else {
-            elm.addEventListener("touchstart", this.handleTouchStart.bind(this));
-            elm.addEventListener("touchmove", this.handleTouchMove.bind(this));
-            elm.addEventListener("touchend", this.handleTouchEnd.bind(this));
-            elm.addEventListener("touchleave", this.handleTouchEnd.bind(this));
+            elm.addEventListener("touchstart", this.handleTouchStart.bind(this), { passive: false });
+            elm.addEventListener("touchmove", this.handleTouchMove.bind(this), { passive: false });
+            elm.addEventListener("touchend", this.handleTouchEnd.bind(this), { passive: false });
+            elm.addEventListener("touchleave", this.handleTouchEnd.bind(this), { passive: false });
         }
     }
 
@@ -312,6 +312,7 @@ export class InkCanvas {
             }
         }
         evt.preventDefault();
+        evt.stopPropagation();
     }
 
     private handlePointerMove(evt: IPointerFrameEvent) {
@@ -344,7 +345,7 @@ export class InkCanvas {
         if (evt.touches.length === 1) {
             const touch = evt.touches[0];
             if (touch.touchType === "stylus") {
-                this.appendTouchToStroke(evt.touches[0]);
+                this.appendTouchToStroke(touch);
             } else {
                 // pan defer to frame
                 this.addPointerMove(touch.identifier, touch.clientX, touch.clientY);
@@ -356,6 +357,7 @@ export class InkCanvas {
             }
         }
         evt.preventDefault();
+        evt.stopPropagation();
     }
 
     private handlePointerUp(evt: PointerEvent) {
@@ -380,6 +382,7 @@ export class InkCanvas {
                 this.localActiveTouchMap.delete(touch.identifier);
             }
         }
+        evt.stopPropagation();
         evt.preventDefault();
     }
 
