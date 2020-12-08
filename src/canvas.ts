@@ -70,7 +70,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         this.sceneContainer.appendChild(this.scene.root);
         this.inkColorPicker = this.createColorPicker();
         this.inkCanvas = new InkCanvas(this, this.scene, this.ink);
-        this.inkCanvas.addHandlers(this.sceneContainer);
+        this.inkCanvas.addHandlers(this.scene.root);
 
         this.sceneContainer.addEventListener("wheel", (event) => {
             if (!event.ctrlKey) {
