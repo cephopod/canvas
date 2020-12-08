@@ -196,6 +196,32 @@ export class InkCanvas {
         }
     }
 
+    private addPointerStart(pointerId: number, clientX: number, clientY: number) {
+        const ccx = this.container.toCanvasX(clientX);
+        const ccy = this.container.toCanvasY(clientY);
+        this.localActiveTouchMap.set(pointerId, {
+            ccx, ccy,
+            touches: [{
+                id: pointerId, touchtime: Date.now(),
+                x: clientX, y: clientY,
+            }],
+        });
+    }
+
+    private addPointerMove(pointerId: number, clientX: number, clientY: number) {
+        const idTouches = this.localActiveTouchMap.get(pointerId);
+        if (idTouches !== undefined) {
+            idTouches.touches.push({
+                id: pointerId, touchtime: Date.now(),
+                x: clientX, y: clientY,
+            });
+            if (!this.frameScheduled) {
+                this.frameScheduled = true;
+                requestAnimationFrame(() => this.renderMovementFrame());
+            }
+        }
+    }
+
     private handlePointerDown(evt: PointerEvent) {
         // We will accept pen down or mouse left down as the start of a stroke.
         if ((evt.pointerType === "pen") ||
@@ -215,15 +241,7 @@ export class InkCanvas {
         }
         else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
-            const ccx = this.container.toCanvasX(evt.clientX);
-            const ccy = this.container.toCanvasY(evt.clientY);
-            this.localActiveTouchMap.set(evt.pointerId, {
-                ccx, ccy,
-                touches: [{
-                    id: evt.pointerId, touchtime: Date.now(),
-                    x: evt.clientX, y: evt.clientY,
-                }],
-            });
+            this.addPointerStart(evt.pointerId, evt.clientX, evt.clientY);
         }
     }
 
@@ -271,11 +289,28 @@ export class InkCanvas {
     }
 
     private handleTouchStart(evt: TouchEvent) {
-        // for now ignore multi-touch
-        const touch = evt.touches[0];
-        const strokeId = this.model.createStroke(this.currentPen).id;
-        this.localActiveStrokeMap.set(touch.identifier, strokeId);
-        this.appendTouchToStroke(touch);
+        if (evt.touches.length === 1) {
+            const touch = evt.touches[0];
+            if (touch.touchType === "stylus") {
+                if (this.eraseMode) {
+                    const ccx = this.container.toCanvasX(touch.clientX);
+                    const ccy = this.container.toCanvasY(touch.clientY);
+
+                    this.eraseStrokes(ccx, ccy);
+                } else {
+                    const strokeId = this.model.createStroke(this.currentPen).id;
+                    this.localActiveStrokeMap.set(touch.identifier, strokeId);
+                    this.appendTouchToStroke(touch);
+                }
+            } else {
+                // pan defer to frame
+                this.addPointerStart(touch.identifier, touch.clientX, touch.clientY);
+            }
+        } else if (evt.touches.length === 2) {
+            for (const touch of evt.touches) {
+                this.addPointerStart(touch.identifier, touch.clientX, touch.clientY);
+            }
+        }
         evt.preventDefault();
     }
 
@@ -301,22 +336,25 @@ export class InkCanvas {
             }
         } else if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.buttons === 1) && evt.ctrlKey)) {
-            const idTouches = this.localActiveTouchMap.get(evt.pointerId);
-            if (idTouches !== undefined) {
-                idTouches.touches.push({
-                    id: evt.pointerId, touchtime: Date.now(),
-                    x: evt.clientX, y: evt.clientY,
-                });
-                if (!this.frameScheduled) {
-                    this.frameScheduled = true;
-                    requestAnimationFrame(() => this.renderMovementFrame());
-                }
-            }
+            this.addPointerMove(evt.pointerId, evt.clientX, evt.clientY);
         }
     }
 
     private handleTouchMove(evt: TouchEvent) {
-        this.appendTouchToStroke(evt.touches[0]);
+        if (evt.touches.length === 1) {
+            const touch = evt.touches[0];
+            if (touch.touchType === "stylus") {
+                this.appendTouchToStroke(evt.touches[0]);
+            } else {
+                // pan defer to frame
+                this.addPointerMove(touch.identifier, touch.clientX, touch.clientY);
+            }
+        } else if (evt.touches.length === 2) {
+            // zoom
+            for (const touch of evt.touches) {
+                this.addPointerMove(touch.identifier, touch.clientX, touch.clientY);
+            }
+        }
         evt.preventDefault();
     }
 
@@ -334,9 +372,13 @@ export class InkCanvas {
     }
 
     private handleTouchEnd(evt: TouchEvent) {
-        const touch = evt.changedTouches[0];
-        if (this.localActiveStrokeMap.has(touch.identifier)) {
-            this.localActiveStrokeMap.delete(touch.identifier);
+        for (const touch of evt.changedTouches) {
+            if (this.localActiveStrokeMap.has(touch.identifier)) {
+                this.localActiveStrokeMap.delete(touch.identifier);
+            }
+            if (this.localActiveTouchMap.has(touch.identifier)) {
+                this.localActiveTouchMap.delete(touch.identifier);
+            }
         }
         evt.preventDefault();
     }

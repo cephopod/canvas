@@ -225,6 +225,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
                 proposedScrollY = maxScrollY;
             }
             if ((proposedScrollX !== this.scrollX) || (proposedScrollY !== this.scrollY)) {
+                // console.log(`pan ${dx} ${dy}`);
                 this.scrollX = proposedScrollX;
                 this.scrollY = proposedScrollY;
                 this.updateSceneTransform();
