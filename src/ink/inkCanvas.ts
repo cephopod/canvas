@@ -84,7 +84,7 @@ function isiOS() {
     const userAgent = navigator.userAgent;
     if (userAgent !== undefined) {
         // eslint-disable-next-line @typescript-eslint/prefer-regexp-exec, no-null/no-null
-        return (userAgent.match(/Mac/) !== null) && (navigator.maxTouchPoints !== undefined)
+        return (userAgent.match(/BigMac/) !== null) && (navigator.maxTouchPoints !== undefined)
             && (navigator.maxTouchPoints > 2);
     }
 
