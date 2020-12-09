@@ -10,7 +10,7 @@ import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
 import { IInk, IInkCanvasContainer, Ink, InkCanvas, IPoint, Rectangle, SVGScene } from "./ink";
 import { svgLibrary } from "./svgUtil";
-import { parseColor } from "./util";
+import { parseColor, parseHexColor } from "./util";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
@@ -33,6 +33,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     public scale = 1;
     public scaleSensitivity = 10;
     private bounds: DOMRect;
+    private picker: AColorPicker.ACPController;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -365,7 +366,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         const eraserButton = document.createElement("button");
         eraserButton.classList.add("ink-toolbar-button");
         eraserButton.addEventListener("click", () => {
-            eraserButton.classList.add("move-toggle");
+            eraserButton.classList.add("mode-active");
             this.inkCanvas.setErase();
         });
         eraserButton.appendChild(svgLibrary.iconErase());
@@ -377,7 +378,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         colorButton.addEventListener("click", (event) => {
             event.stopPropagation();
             this.inkCanvas.setPenColor(parseColor(this.currentColor));
-            eraserButton.classList.remove("move-toggle");
+            eraserButton.classList.remove("mode-active");
             this.toggleColorPicker();
         });
         colorButton.appendChild(svgLibrary.iconPen("pen-svg"));
@@ -396,9 +397,13 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         const inkColorPicker = document.createElement("div");
         inkColorPicker.setAttribute("acp-show-rgb", "no");
         inkColorPicker.setAttribute("acp-show-hsl", "no");
-        inkColorPicker.setAttribute("acp-palette-editable", "");
+        inkColorPicker.setAttribute("acp-show-hex", "no");
+        inkColorPicker.setAttribute("acp-palette-editable", "false");
         inkColorPicker.classList.add("ink-color-picker");
-        AColorPicker.createPicker(inkColorPicker, { color: "#000" }).on(
+        this.picker = AColorPicker.createPicker(inkColorPicker, { color: "#000" });
+        const basePalette = ["black", "red", "green", "blue"];
+        this.picker.palette = basePalette;
+        this.picker.on(
             "change", (p, c) => {
                 this.inkCanvas.setPenColor(parseColor(c));
                 this.currentColor = c;
@@ -415,5 +420,25 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     private toggleColorPicker() {
         this.inkColorPicker.classList.toggle("show");
         this.showingColorPicker = !this.showingColorPicker;
+        let dup = false;
+        if (!this.showingColorPicker) {
+            const newColor = parseColor(this.currentColor);
+            for (const c of this.picker.palette) {
+                const color = parseHexColor(c);
+                if ((color.r === newColor.r) && (color.b === newColor.b) && (color.g === newColor.g)) {
+                    dup = true;
+                }
+            }
+            if (!dup) {
+                const maxColorCount = 10;
+                const newPalette = this.picker.palette.slice();
+                if (newPalette.length === maxColorCount) {
+                    newPalette[maxColorCount - 1] = this.currentColor;
+                } else {
+                    newPalette.push(this.currentColor);
+                }
+                this.picker.palette = newPalette;
+            }
+        }
     }
 }
