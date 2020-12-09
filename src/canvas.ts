@@ -15,6 +15,10 @@ import { parseColor, parseHexColor } from "./util";
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
 
+export interface IPicker extends AColorPicker.ACPController {
+    palette: string[];
+}
+
 export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasContainer {
     public get IFluidHTMLView() { return this; }
 
@@ -33,7 +37,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     public scale = 1;
     public scaleSensitivity = 10;
     private bounds: DOMRect;
-    private picker: AColorPicker.ACPController;
+    private picker: IPicker;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
