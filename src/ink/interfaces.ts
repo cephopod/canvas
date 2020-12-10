@@ -255,4 +255,14 @@ export interface IInkCanvasContainer {
     toCanvasCoordinates(pt: IPoint): void;
     scale: number;
     sceneContainer: HTMLDivElement;
+    drawingStarted?(): void;
+}
+export type SceneElement = HTMLElement | SVGElement;
+
+export interface IInkScene {
+    root: SceneElement;
+    clear(): void;
+    eraseStrokes(strokes: IInkStroke[]): void;
+    addStrokeSegment(stroke: IInkStroke, point: IInkPoint): void;
+    render(strokes: IInkStroke[]): void;
 }

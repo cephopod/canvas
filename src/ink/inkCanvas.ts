@@ -3,82 +3,12 @@
  * Licensed under the MIT License.
  */
 import {
-    IColor, IInkPoint, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation,
+    IColor, IInkStroke, IPen, IPoint, IStylusOperation, IEraseStrokesOperation,
     IInkCanvasContainer,
+    IInkScene,
+    SceneElement,
 } from "./interfaces";
-import { SVGScene } from "./svg";
 import { Ink, Rectangle } from ".";
-
-interface IInkStrokeVis extends IInkStroke {
-    elt?: SVGGElement;
-}
-
-class Vector {
-    /**
-     * Returns the vector resulting from rotating vector by angle
-     */
-    public static rotate(vector: Vector, angle: number): Vector {
-        return new Vector(
-            vector.x * Math.cos(angle) - vector.y * Math.sin(angle),
-            vector.x * Math.sin(angle) + vector.y * Math.cos(angle));
-    }
-
-    /**
-     * Returns the normalized form of the given vector
-     */
-    public static normalize(vector: Vector): Vector {
-        const length = vector.length();
-        return new Vector(vector.x / length, vector.y / length);
-    }
-
-    constructor(public x: number, public y: number) {
-    }
-
-    public length(): number {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
-    }
-}
-
-function addShapes(elt: SVGGElement, startPoint: IInkPoint, endPoint: IInkPoint, pen: IPen) {
-    const fillColor = `rgb(${pen.color.r}, ${pen.color.g}, ${pen.color.b})`;
-    // console.log(`start ${startPoint.x}, ${startPoint.y} end ${endPoint.x}, ${endPoint.y} r ${pen.color.r}`);
-    const dirVector = new Vector(
-        endPoint.x - startPoint.x,
-        endPoint.y - startPoint.y);
-    const len = dirVector.length();
-
-    const widthAtStart = pen.thickness * startPoint.pressure;
-    const widthAtEnd = pen.thickness * endPoint.pressure;
-
-    if (len + Math.min(widthAtStart, widthAtEnd) > Math.max(widthAtStart, widthAtEnd)) {
-        // Circles don't completely overlap, need a trapezoid
-        const normalizedLateralVector = new Vector(-dirVector.y / len, dirVector.x / len);
-
-        const trapezoidP0 = {
-            x: startPoint.x + widthAtStart * normalizedLateralVector.x,
-            y: startPoint.y + widthAtStart * normalizedLateralVector.y,
-        };
-        const trapezoidP1 = {
-            x: startPoint.x - widthAtStart * normalizedLateralVector.x,
-            y: startPoint.y - widthAtStart * normalizedLateralVector.y,
-        };
-        const trapezoidP2 = {
-            x: endPoint.x - widthAtEnd * normalizedLateralVector.x,
-            y: endPoint.y - widthAtEnd * normalizedLateralVector.y,
-        };
-        const trapezoidP3 = {
-            x: endPoint.x + widthAtEnd * normalizedLateralVector.x,
-            y: endPoint.y + widthAtEnd * normalizedLateralVector.y,
-        };
-        const pgon = SVGScene.makePolygon(fillColor, [trapezoidP0, trapezoidP1, trapezoidP2, trapezoidP3]);
-        elt.appendChild(pgon);
-    }
-
-    // End circle
-    // TODO should only draw if not eclipsed by the previous circle, be careful about single-point
-    const circle = SVGScene.makeCircle(fillColor, endPoint.x, endPoint.y, widthAtEnd);
-    elt.appendChild(circle);
-}
 
 function isiOS() {
     const userAgent = navigator.userAgent;
@@ -118,11 +48,11 @@ export class InkCanvas {
     private readonly localActiveTouchMap = new Map<number, IActiveTouches>();
     private readonly currentPen: IPen;
     private eraseMode = false;
-    public sceneRoot: SVGSVGElement;
+    public sceneRoot: SceneElement;
     private frameScheduled = false;
 
     constructor(private readonly container: IInkCanvasContainer,
-        private readonly scene: SVGScene, private readonly model: Ink) {
+        private readonly scene: IInkScene, private readonly model: Ink) {
         this.model.on("clear", this.clearCanvas.bind(this));
         this.model.on("stylus", this.handleStylus.bind(this));
         this.model.on("eraseStrokes", this.handleEraseStrokes.bind(this));
@@ -185,15 +115,8 @@ export class InkCanvas {
     }
 
     private executeEraseStrokes(ids: string[]) {
-        if (ids.length > 0) {
-            for (const id of ids) {
-                const vstroke = this.model.getStroke(id) as IInkStrokeVis;
-                if (vstroke.elt !== undefined) {
-                    // for now just hide it
-                    vstroke.elt.style.display = "none";
-                }
-            }
-        }
+        const strokes = ids.map((id) => this.model.getStroke(id));
+        this.scene.eraseStrokes(strokes);
     }
 
     private addPointerStart(pointerId: number, clientX: number, clientY: number) {
@@ -226,6 +149,9 @@ export class InkCanvas {
         // We will accept pen down or mouse left down as the start of a stroke.
         if ((evt.pointerType === "pen") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && (!evt.ctrlKey))) {
+            if (this.container.drawingStarted !== undefined) {
+                this.container.drawingStarted();
+            }
             if (this.eraseMode) {
                 const ccx = this.container.toCanvasX(evt.clientX);
                 const ccy = this.container.toCanvasY(evt.clientY);
@@ -292,6 +218,9 @@ export class InkCanvas {
         if (evt.touches.length === 1) {
             const touch = evt.touches[0];
             if (touch.touchType === "stylus") {
+                if (this.container.drawingStarted !== undefined) {
+                    this.container.drawingStarted();
+                }
                 if (this.eraseMode) {
                     const ccx = this.container.toCanvasX(touch.clientX);
                     const ccy = this.container.toCanvasY(touch.clientY);
@@ -436,43 +365,15 @@ export class InkCanvas {
      */
     public renderStrokes() {
         const strokes = this.model.getStrokes();
-        for (const stroke of strokes) {
-            const visStroke = stroke as IInkStrokeVis;
-            if (visStroke.elt === undefined) {
-                visStroke.elt = this.scene.makeGroup();
-            }
-            if (!stroke.inactive) {
-                let previous = stroke.points[0];
-                for (const current of stroke.points) {
-                    // For the down, current === previous === stroke.operations[0]
-                    this.addStrokeSegment(visStroke.elt, stroke.pen, current, previous);
-                    previous = current;
-                }
-            }
-        }
-    }
-
-    private addStrokeSegment(
-        strokeElement: SVGGElement,
-        pen: IPen,
-        current: IInkPoint,
-        previous: IInkPoint,
-        drawVp = true,
-    ) {
-        // first draw in full canvas
-        addShapes(strokeElement, previous, current, pen);
+        this.scene.render(strokes);
     }
 
     private handleStylus(operation: IStylusOperation) {
         // Render the dirty stroke
         const dirtyStrokeId = operation.id;
-        const stroke = this.model.getStroke(dirtyStrokeId) as IInkStrokeVis;
+        const stroke = this.model.getStroke(dirtyStrokeId);
         // If this is the only point in the stroke, we'll use it for both the start and end of the segment
-        const prevPoint = stroke.points[stroke.points.length - (stroke.points.length >= 2 ? 2 : 1)];
-        if (stroke.elt === undefined) {
-            stroke.elt = this.scene.makeGroup();
-        }
-        this.addStrokeSegment(stroke.elt, stroke.pen, prevPoint, operation.point);
+        this.scene.addStrokeSegment(stroke, operation.point);
     }
 
     private handleEraseStrokes(operation: IEraseStrokesOperation) {

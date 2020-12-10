@@ -8,7 +8,7 @@ import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
-import { IInk, IInkCanvasContainer, Ink, InkCanvas, IPoint, Rectangle, SVGScene } from "./ink";
+import { IInk, IInkCanvasContainer, IInkScene, Ink, InkCanvas, IPoint, Rectangle, SVGScene } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor, parseHexColor } from "./util";
 
@@ -30,7 +30,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     private inkComponentRoot: HTMLDivElement;
     private indexOverlay: HTMLDivElement;
     private currentColor: string = "rgba(0,0,0,1)";
-    private scene: SVGScene;
+    private scene: IInkScene;
     public sceneContainer: HTMLDivElement;
     private scrollX = 0;
     private scrollY = 0;
@@ -419,6 +419,12 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         });
 
         return inkColorPicker;
+    }
+
+    public drawingStarted() {
+        if (this.showingColorPicker) {
+            this.toggleColorPicker();
+        }
     }
 
     private toggleColorPicker() {
