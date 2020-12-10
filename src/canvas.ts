@@ -8,7 +8,7 @@ import { IFluidHandle } from "@fluidframework/core-interfaces";
 import { IFluidHTMLOptions, IFluidHTMLView } from "@fluidframework/view-interfaces";
 import * as AColorPicker from "a-color-picker";
 import { Modal } from "./modal";
-import { IInk, IInkCanvasContainer, IInkScene, Ink, InkCanvas, IPoint, Rectangle, SVGScene } from "./ink";
+import { IInk, IInkCanvasContainer, IInkScene, Ink, InkCanvas, IPoint, RasterScene, Rectangle, SVGScene } from "./ink";
 import { svgLibrary } from "./svgUtil";
 import { parseColor, parseHexColor } from "./util";
 
@@ -64,9 +64,14 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     }
 
     private createCanvasDom() {
+        const doCanvas = true;
         this.inkComponentRoot = document.createElement("div");
         this.inkComponentRoot.classList.add("ink-component-root");
-        this.scene = new SVGScene(this.ink.getWidth(), this.ink.getHeight());
+        if (doCanvas) {
+            this.scene = new RasterScene(this.ink);
+        } else {
+            this.scene = new SVGScene(this.ink.getWidth(), this.ink.getHeight());
+        }
         this.sceneContainer = document.createElement("div");
         this.sceneContainer.classList.add("ink-birdseye");
         this.scene.root.style.width = `${this.ink.getWidth()}px`;
