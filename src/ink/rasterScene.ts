@@ -85,6 +85,7 @@ export class RasterScene implements IInkScene {
         // Scale the context to bring back coordinate system in CSS pixels
         this.drawingContext.setTransform(1, 0, 0, 1, 0, 0);
         this.drawingContext.scale(dscale, dscale);
+        this.drawingContext.imageSmoothingEnabled = false;
     }
 
     private clearBox(box: Rectangle) {
