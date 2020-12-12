@@ -92,6 +92,11 @@ export class RasterScene implements IInkScene {
         this.drawingContext.clearRect(box.x, box.y, box.width, box.height);
     }
 
+    public writeText(x: number, y: number, str: string) {
+        this.drawingContext.font = "30px Georgia";
+        this.drawingContext.fillText(str, x, y);
+    }
+
     public clear() {
         this.clearBox(new Rectangle(0, 0, this.model.getWidth(), this.model.getHeight()));
     }

@@ -88,6 +88,10 @@ export class InkCanvas {
         this.eraseMode = true;
     }
 
+    public writeText(x: number, y: number, str: string) {
+        this.scene.writeText(x, y, str);
+    }
+
     public clear() {
         this.model.clear();
         this.clearCanvas();

@@ -43,7 +43,16 @@ module.exports = env => {
                 }]
             },
             {
-                test: /\.(png|jpg|gif|svg|eot|ttf|woff|woff2)$/,
+                test: /\.(woff|woff2|eot|ttf)$/,
+                loader: 'url-loader',
+                options: {
+                    limit: 4096,
+                    mimetype: 'application/font-woff',
+                    name: './fonts/[name].[ext]?[hash]', // was '/fonts/[name].[ext]?[hash]',
+                },
+            },
+            {
+                test: /\.(png|jpg|gif|svg)$/,
                 loader: 'url-loader',
                 options: {
                     limit: 10000

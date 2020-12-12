@@ -262,6 +262,7 @@ export type SceneElement = HTMLElement | SVGElement;
 export interface IInkScene {
     root: SceneElement;
     clear(): void;
+    writeText(x: number, y: number, str: string): void;
     eraseStrokes(strokes: IInkStroke[]): void;
     addStrokeSegment(stroke: IInkStroke, point: IInkPoint): void;
     render(strokes: IInkStroke[]): void;

@@ -38,6 +38,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
     public scaleSensitivity = 10;
     private bounds: DOMRect;
     private picker: IPicker;
+    public activeText: HTMLDivElement;
 
     public render(elm: HTMLElement, options?: IFluidHTMLOptions): void {
         elm.appendChild(this.createCanvasDom());
@@ -302,6 +303,12 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
                 break;
             case "o":
                 this.originalCoordinates();
+                break;
+            case "t":
+                this.activeText = document.createElement("div");
+                this.activeText.classList.add("texttyped");
+                this.activeText.innerText = "BigTest";
+                this.sceneContainer.appendChild(this.activeText);
                 break;
             default:
                 break;

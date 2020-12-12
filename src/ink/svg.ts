@@ -76,6 +76,10 @@ export class SVGScene implements IInkScene {
         this.createRoot(w, h);
     }
 
+    writeText(x: number, y: number, str: string) {
+        // TODO
+    }
+
     createRoot(w: number, h: number) {
         this.root = document.createElementNS(svgns, "svg");
         this.clear();
