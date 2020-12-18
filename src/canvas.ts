@@ -14,7 +14,6 @@ import { parseColor, parseHexColor } from "./util";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "./style.less";
-import { parse } from "path";
 
 export interface IPicker extends AColorPicker.ACPController {
     palette: string[];
@@ -404,13 +403,13 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
         const darkModeButton = document.createElement("button");
         darkModeButton.classList.add("ink-toolbar-button");
         darkModeButton.addEventListener("click", () => {
-            let classlist = this.inkComponentRoot.classList;
-            let minimap = this.miniMap.classList;
+            const classlist = this.inkComponentRoot.classList;
+            const minimap = this.miniMap.classList;
             if (classlist.contains("dark-mode")) {
-                classlist.remove("dark-mode")
-                minimap.remove("dark-mode")
+                classlist.remove("dark-mode");
+                minimap.remove("dark-mode");
                 this.inkCanvas.setPenColor(parseColor("rgba(0,0,0,1)"));
-                this.currentColor = "rgba(0,0,0,1)"
+                this.currentColor = "rgba(0,0,0,1)";
                 document.getElementById("pen-svg").setAttribute("fill", "rgba(0,0,0,1)");
                 document.getElementById("moon-svg").setAttribute("fill", "rgba(53,53,59,1)");
             }
@@ -418,11 +417,11 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
                 classlist.add("dark-mode");
                 minimap.add("dark-mode");
                 this.inkCanvas.setPenColor(parseColor("rgba(255,255,255,1)"));
-                this.currentColor = "rgba(255,255,255,1)"
+                this.currentColor = "rgba(255,255,255,1)";
                 document.getElementById("pen-svg").setAttribute("fill", "rgba(255,255,255,1)");
                 document.getElementById("moon-svg").setAttribute("fill", "rgba(255,255,255,1)");
             }
-        })
+        });
         darkModeButton.appendChild(svgLibrary.iconMoon("moon-svg"));
 
         inkToolbar.appendChild(colorButtonContainer);
