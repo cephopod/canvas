@@ -193,7 +193,7 @@ export class InkCanvas {
                 }
             }
         }
-        else if (this.localActiveTouchMap.size === 2) {
+        else if (this.localActiveTouchMap.size >= 2) {
             const tprev: IActiveTouch[] = [];
             const tlast: IActiveTouch[] = [];
             for (const pointerId of this.localActiveTouchMap.keys()) {
@@ -294,7 +294,7 @@ export class InkCanvas {
                 // pan defer to frame
                 this.addPointerMove(touch.identifier, touch.clientX, touch.clientY);
             }
-        } else if (evt.touches.length === 2) {
+        } else if (evt.touches.length >= 2) {
             // zoom
             for (const touch of evt.touches) {
                 this.addPointerMove(touch.identifier, touch.clientX, touch.clientY);
@@ -313,7 +313,7 @@ export class InkCanvas {
             }
         } if ((evt.pointerType === "touch") ||
             ((evt.pointerType === "mouse") && (evt.button === 0) && evt.ctrlKey)) {
-            this.localActiveTouchMap.clear();
+            this.localActiveTouchMap.delete(evt.pointerId);
         }
     }
 
