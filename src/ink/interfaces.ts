@@ -249,7 +249,7 @@ export interface IInkStroke {
 
 export interface IInkCanvasContainer {
     pan(dx: number, dy: number): void;
-    zoom(d: number, cx: number, cy: number, wheel?: boolean): void;
+    zoom(d: number, cx: number, cy: number, wheel?: boolean, panx?: number, pany?: number): void;
     toCanvasX(cx: number): number;
     toCanvasY(cy: number): number;
     toCanvasCoordinates(pt: IPoint): void;

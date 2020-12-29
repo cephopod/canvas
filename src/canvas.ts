@@ -186,7 +186,7 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
      * @param cx Center X in client coordinates
      * @param cy Center Y in client coordinates
      */
-    public zoom(factor: number, cx: number, cy: number, wheel = true) {
+    public zoom(factor: number, cx: number, cy: number, wheel = true, panx = 0, pany = 0) {
         let newScale: number;
         const minScale = this.inkCanvasBounds().height / this.ink.getHeight();
         let deltaScale: number;
@@ -207,8 +207,8 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
             // eslint-disable-next-line max-len
             // console.log(`ccx ${ccx} ccy ${ccy} cx ${cx} cy ${cy} sc ${this.scale} nsc ${newScale} tx ${this.scrollX}`);
             this.scale = newScale;
-            this.scrollX = ccx - (cx / newScale);
-            this.scrollY = ccy - (cy / newScale);
+            this.scrollX = ccx - (cx / newScale) + panx;
+            this.scrollY = ccy - (cy / newScale) + pany;
             this.updateSceneTransform();
             this.updateBoundsView();
         } else {

@@ -187,9 +187,9 @@ export class InkCanvas {
                     const pccy = this.container.toCanvasY(t.y);
                     const prevccx = this.container.toCanvasX(tprev.x);
                     const prevccy = this.container.toCanvasY(tprev.y);
-                    const dx = Math.floor(pccx - prevccx);
-                    const dy = Math.floor(pccy - prevccy);
-                    this.container.pan(-dx, -dy);
+                    const dx = Math.round(prevccx - pccx);
+                    const dy = Math.round(prevccy - pccy);
+                    this.container.pan(dx, dy);
                 }
             }
         }
@@ -205,8 +205,19 @@ export class InkCanvas {
                     return;
                 }
             }
-            const cx = (tprev[0].x + tprev[1].x) / 2;
-            const cy = (tprev[0].y + tprev[1].y) / 2;
+            const cx = (tlast[0].x + tlast[1].x) / 2;
+            const cy = (tlast[0].y + tlast[1].y) / 2;
+            // pan section
+
+            const prevcx = (tprev[0].x + tprev[1].x) / 2;
+            const prevcy = (tprev[0].y + tprev[1].y) / 2;
+            const pccx = this.container.toCanvasX(cx);
+            const pccy = this.container.toCanvasY(cy);
+            const prevccx = this.container.toCanvasX(prevcx);
+            const prevccy = this.container.toCanvasY(prevcy);
+            const panx = Math.round(prevccx - pccx);
+            const pany = Math.round(prevccy - pccy);
+            // zoom section
             let dx = tprev[0].x - tprev[1].x;
             let dy = tprev[0].y - tprev[1].y;
             const d1 = Math.sqrt(dx * dx + dy * dy);
@@ -214,7 +225,7 @@ export class InkCanvas {
             dy = tlast[0].y - tlast[1].y;
             const d2 = Math.sqrt(dx * dx + dy * dy);
             const dpix = d2 / d1;
-            this.container.zoom(dpix, cx, cy, false);
+            this.container.zoom(dpix, cx, cy, false, panx, pany);
         }
     }
 
