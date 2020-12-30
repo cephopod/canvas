@@ -275,8 +275,12 @@ export class InkCanvas {
                 if (evts === undefined) {
                     evts = [evt];
                 }
+                let prev: PointerEvent;
+                const thresh = 1;
                 for (const e of evts) {
-                    this.appendPointerEventToStroke(e);
+                    if ((prev === undefined) || (((e.clientY - prev.clientY) + (e.clientX - prev.clientX)) > thresh)) {
+                        this.appendPointerEventToStroke(e);
+                    }
                 }
             }
         } else if ((evt.pointerType === "touch") ||
