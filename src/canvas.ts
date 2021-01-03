@@ -218,23 +218,8 @@ export class Canvas extends DataObject implements IFluidHTMLView, IInkCanvasCont
 
     public pan(dx: number, dy: number) {
         if ((dx !== 0) || (dy !== 0)) {
-            let proposedScrollX = this.scrollX + dx;
-            let proposedScrollY = this.scrollY + dy;
-            if (proposedScrollX < 0) {
-                proposedScrollX = 0;
-            }
-            if (proposedScrollY < 0) {
-                proposedScrollY = 0;
-            }
-            const viewportBounds = this.inkCanvasBounds();
-            const maxScrollX = this.ink.getWidth() - (viewportBounds.width / this.scale);
-            const maxScrollY = this.ink.getHeight() - (viewportBounds.height / this.scale);
-            if (proposedScrollX > maxScrollX) {
-                proposedScrollX = maxScrollX;
-            }
-            if (proposedScrollY > maxScrollY) {
-                proposedScrollY = maxScrollY;
-            }
+            const proposedScrollX = this.scrollX + dx;
+            const proposedScrollY = this.scrollY + dy;
             if ((proposedScrollX !== this.scrollX) || (proposedScrollY !== this.scrollY)) {
                 // console.log(`pan ${dx} ${dy}`);
                 this.scrollX = proposedScrollX;
