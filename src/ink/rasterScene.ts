@@ -80,11 +80,14 @@ export class RasterScene implements IInkScene {
         this.root.height = model.getHeight();
         this.drawingContext = this.root.getContext("2d");
         // Scale the context to bring back coordinate system in CSS pixels
-        // const dscale = window.devicePixelRatio;
-        // this.root.width = Math.floor(this.root.width * dscale);
-        // this.root.height = Math.floor(this.root.height * dscale);
-        // this.drawingContext.setTransform(1, 0, 0, 1, 0, 0);
-        // this.drawingContext.scale(dscale, dscale);
+        const toPhys = true;
+        if (toPhys) {
+            const dscale = window.devicePixelRatio;
+            this.root.width = Math.floor(this.root.width * dscale);
+            this.root.height = Math.floor(this.root.height * dscale);
+            this.drawingContext.setTransform(1, 0, 0, 1, 0, 0);
+            this.drawingContext.scale(dscale, dscale);
+        }
         this.drawingContext.imageSmoothingEnabled = false;
     }
 
